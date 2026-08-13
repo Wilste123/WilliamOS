@@ -120,13 +120,24 @@ def create_event(payload: dict) -> dict:
 
 
 def capture_inbox_entry(text: str) -> dict:
-    amount_match = re.search(
-        r"\btil\s+(\d[\d\s.]*(?:\d)?)\s*(?:kr|nok|,-)?(?:\b|$)",
-        text,
-        flags=re.IGNORECASE,
-    )
-    amount = amount_match.group(1).replace(" ", "").replace(".", "") if amount_match else None
     lowered = text.lower()
+    amount = None
+    _, separator, amount_tail = lowered.partition(" til ")
+    if separator:
+        raw_amount = []
+        started = False
+        for char in amount_tail:
+            if char.isdigit():
+                raw_amount.append(char)
+                started = True
+                continue
+            if char in {" ", "."} and started:
+                raw_amount.append(char)
+                continue
+            if started:
+                break
+        cleaned_amount = "".join(raw_amount).replace(" ", "").replace(".", "")
+        amount = cleaned_amount or None
     suggestions = []
 
     if "kjøp" in lowered or "kjøpe" in lowered:
@@ -134,7 +145,7 @@ def capture_inbox_entry(text: str) -> dict:
             {
                 "object_type": "asset",
                 "fields": {
-                    "name": re.split(r"\btil\b", text, flags=re.IGNORECASE)[0].strip(),
+                    "name": text[: lowered.find(" til ")].strip() if " til " in lowered else text.strip(),
                     "status": "considering_purchase",
                     "estimated_value": float(amount) if amount else None,
                 },
