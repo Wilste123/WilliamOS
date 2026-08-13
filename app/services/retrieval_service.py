@@ -8,6 +8,7 @@ from app.services.storage_service import list_records
 
 MAX_SNIPPET_CHARS = 400
 MAX_RESULTS = 5
+MAX_CONTENT_CHARS = 4000
 
 
 def _tokenize(text: str) -> set[str]:
@@ -112,11 +113,32 @@ def build_document_context(query: str, *, top_k: int = MAX_RESULTS) -> tuple[str
     if not hits:
         return "", []
 
-    lines = ["Relevant documents from your workspace:\n"]
+    # Re-fetch full text_content for the matched documents so the model can read
+    # and analyze them – not just see a short metadata snippet.
+    documents_by_id = {
+        doc.get("id"): doc
+        for doc in list_records("documents")
+        if doc.get("id")
+    }
+
+    lines = [
+        "The following documents from your workspace are relevant to the user's question.",
+        "Read their full content carefully and use it to answer.\n",
+    ]
     for i, hit in enumerate(hits, 1):
-        lines.append(f"[{i}] {hit['filename']} (module: {hit.get('source_module') or 'unknown'})")
-        if hit["snippet"]:
-            lines.append(f"    ...{hit['snippet']}...")
+        full_doc = documents_by_id.get(hit["id"], {})
+        text_content = (full_doc.get("text_content") or hit.get("snippet") or "").strip()
+        if len(text_content) > MAX_CONTENT_CHARS:
+            text_content = text_content[:MAX_CONTENT_CHARS] + "\n[... content truncated ...]"
+
+        lines.append(
+            f"--- Document {i}: {hit['filename']} "
+            f"(module: {hit.get('source_module') or 'unknown'}) ---"
+        )
+        if text_content:
+            lines.append(text_content)
+        else:
+            lines.append("(No text content available for this document.)")
         lines.append("")
 
     return "\n".join(lines), hits
