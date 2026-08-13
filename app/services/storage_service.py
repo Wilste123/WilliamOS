@@ -1,8 +1,17 @@
-import fcntl
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
+
+msvcrt = None
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None
+    import msvcrt
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -17,6 +26,7 @@ COLLECTIONS = [
     "events",
     "inbox_items",
 ]
+WINDOWS_LOCK_SIZE = 2**31 - 1
 
 
 def _default_state() -> dict:
@@ -36,6 +46,24 @@ def _normalize_state(state: dict | None) -> dict:
     return state
 
 
+def _lock_file(handle, *, exclusive: bool) -> None:
+    if fcntl is not None:
+        mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        fcntl.flock(handle.fileno(), mode)
+        return
+    mode = msvcrt.LK_LOCK if exclusive else msvcrt.LK_RLCK
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), mode, WINDOWS_LOCK_SIZE)
+
+
+def _unlock_file(handle) -> None:
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        return
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, WINDOWS_LOCK_SIZE)
+
+
 def _read_state(handle) -> dict:
     handle.seek(0)
     try:
@@ -48,29 +76,29 @@ def _read_state(handle) -> dict:
 def load_state() -> dict:
     _ensure_storage()
     with DATA_FILE.open("r", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+        _lock_file(handle, exclusive=False)
         try:
             return _read_state(handle)
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _unlock_file(handle)
 
 
 def save_state(state: dict) -> None:
     _ensure_storage()
     with DATA_FILE.open("r+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        _lock_file(handle, exclusive=True)
         try:
             handle.seek(0)
             json.dump(_normalize_state(state), handle, indent=2, ensure_ascii=False)
             handle.truncate()
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _unlock_file(handle)
 
 
-def mutate_state(mutator):
+def mutate_state(mutator: Callable[[dict], Any]) -> Any:
     _ensure_storage()
     with DATA_FILE.open("r+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        _lock_file(handle, exclusive=True)
         try:
             state = _read_state(handle)
             result = mutator(state)
@@ -79,7 +107,7 @@ def mutate_state(mutator):
             handle.truncate()
             return result
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _unlock_file(handle)
 
 
 def list_records(collection: str) -> list[dict]:

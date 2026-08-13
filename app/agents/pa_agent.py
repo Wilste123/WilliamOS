@@ -46,7 +46,7 @@ def handle_actions(message: str):
     ]
 
     for action_type, pattern in action_patterns:
-        match = re.match(pattern, lowered)
+        match = re.match(pattern, msg, flags=re.IGNORECASE)
         if not match:
             continue
         content = match.group("content").strip()
