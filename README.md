@@ -57,7 +57,7 @@ uvicorn app.api.main:app --reload
 - Dashboard med prioriteringer, hendelser, dokumenter og aktivitet
 - Asset-first visning med eiendeler, prosjekter, oppgaver og beslutninger
 - Timeline/historikk via hendelser som bygges automatisk når data opprettes
-- Lokal lagring som fallback når Supabase ikke er konfigurert
+- Supabase som eneste lagringslag — operasjoner feiler tydelig hvis Supabase ikke er konfigurert
 - Chat som kan utføre enkle handlinger direkte, som å opprette oppgave, eiendel, prosjekt eller beslutning
 
 ## Foreslått rekkefølge
