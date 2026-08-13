@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.models.project import ProjectCreate
+from app.models.project import ProjectCreate, ProjectUpdate
 from app.services.action_engine import create_project as create_project_record, update_project
 from app.services.storage_service import list_records
 
@@ -18,8 +18,8 @@ def create_project(project: ProjectCreate):
 
 
 @router.patch("/{project_id}")
-def patch_project(project_id: str, updates: dict):
-    project = update_project(project_id, updates)
+def patch_project(project_id: str, updates: ProjectUpdate):
+    project = update_project(project_id, updates.model_dump(mode="json", exclude_none=True))
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

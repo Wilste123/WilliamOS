@@ -10,5 +10,13 @@ class ProjectCreate(BaseModel):
     asset_id: UUID | None = None
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = None
+    status: str | None = None
+    next_action: str | None = None
+    notes: str | None = None
+    asset_id: UUID | None = None
+
+
 class Project(ProjectCreate):
     id: UUID | None = None

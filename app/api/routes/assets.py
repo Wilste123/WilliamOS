@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.models.asset import AssetCreate
+from app.models.asset import AssetCreate, AssetUpdate
 from app.services.action_engine import create_asset as create_asset_record, update_asset
 from app.services.storage_service import list_records
 
@@ -18,8 +18,8 @@ def create_asset(asset: AssetCreate):
 
 
 @router.patch("/{asset_id}")
-def patch_asset(asset_id: str, updates: dict):
-    asset = update_asset(asset_id, updates)
+def patch_asset(asset_id: str, updates: AssetUpdate):
+    asset = update_asset(asset_id, updates.model_dump(mode="json", exclude_none=True))
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset

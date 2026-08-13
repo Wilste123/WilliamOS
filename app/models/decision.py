@@ -13,6 +13,16 @@ class DecisionCreate(BaseModel):
     project_id: UUID | None = None
 
 
+class DecisionUpdate(BaseModel):
+    title: str | None = None
+    summary: str | None = None
+    status: str | None = None
+    next_action: str | None = None
+    asset_id: UUID | None = None
+    project_id: UUID | None = None
+    decided_at: datetime | None = None
+
+
 class Decision(DecisionCreate):
     id: UUID | None = None
     decided_at: datetime | None = None

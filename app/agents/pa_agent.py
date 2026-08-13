@@ -38,18 +38,18 @@ def handle_actions(message: str):
         }
 
     action_patterns = [
-        ("task", r"^(lag|opprett)\s+oppgave\s+(.+)$"),
-        ("asset", r"^(lag|opprett)\s+(eiendel|asset)\s+(.+)$"),
-        ("project", r"^(lag|opprett)\s+prosjekt\s+(.+)$"),
-        ("decision", r"^(lag|opprett)\s+beslutning\s+(.+)$"),
-        ("inbox", r"^(fang|legg)\s+i\s+innboks\s+(.+)$"),
+        ("task", r"^(lag|opprett)\s+oppgave\s+(?P<content>.+)$"),
+        ("asset", r"^(lag|opprett)\s+(eiendel|asset)\s+(?P<content>.+)$"),
+        ("project", r"^(lag|opprett)\s+prosjekt\s+(?P<content>.+)$"),
+        ("decision", r"^(lag|opprett)\s+beslutning\s+(?P<content>.+)$"),
+        ("inbox", r"^(fang|legg)\s+i\s+innboks\s+(?P<content>.+)$"),
     ]
 
     for action_type, pattern in action_patterns:
         match = re.match(pattern, lowered)
         if not match:
             continue
-        content = match.group(match.lastindex or 0).strip()
+        content = match.group("content").strip()
         if action_type == "task":
             task = create_task({"title": content, "priority": 2, "status": "open"})
             return {"handled": True, "response": f"✅ Oppgave opprettet: {task['title']}"}

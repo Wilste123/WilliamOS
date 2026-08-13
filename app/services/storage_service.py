@@ -1,3 +1,4 @@
+import fcntl
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,20 +29,57 @@ def _ensure_storage() -> None:
         DATA_FILE.write_text(json.dumps(_default_state(), indent=2), encoding="utf-8")
 
 
-def load_state() -> dict:
-    _ensure_storage()
-    try:
-        state = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        state = _default_state()
+def _normalize_state(state: dict | None) -> dict:
+    state = state or {}
     for collection in COLLECTIONS:
         state.setdefault(collection, [])
     return state
 
 
+def _read_state(handle) -> dict:
+    handle.seek(0)
+    try:
+        state = json.loads(handle.read() or "{}")
+    except json.JSONDecodeError:
+        state = _default_state()
+    return _normalize_state(state)
+
+
+def load_state() -> dict:
+    _ensure_storage()
+    with DATA_FILE.open("r", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+        try:
+            return _read_state(handle)
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def save_state(state: dict) -> None:
     _ensure_storage()
-    DATA_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    with DATA_FILE.open("r+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            handle.seek(0)
+            json.dump(_normalize_state(state), handle, indent=2, ensure_ascii=False)
+            handle.truncate()
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def mutate_state(mutator):
+    _ensure_storage()
+    with DATA_FILE.open("r+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            state = _read_state(handle)
+            result = mutator(state)
+            handle.seek(0)
+            json.dump(_normalize_state(state), handle, indent=2, ensure_ascii=False)
+            handle.truncate()
+            return result
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def list_records(collection: str) -> list[dict]:
@@ -58,30 +96,32 @@ def get_record(collection: str, record_id: str) -> dict | None:
 
 
 def create_record(collection: str, payload: dict) -> dict:
-    state = load_state()
-    record = {
-        "id": str(uuid4()),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        **payload,
-    }
-    state[collection].append(record)
-    save_state(state)
-    return record
+    def _mutate(state: dict) -> dict:
+        record = {
+            "id": str(uuid4()),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            **payload,
+        }
+        state[collection].append(record)
+        return record
+
+    return mutate_state(_mutate)
 
 
 def update_record(collection: str, record_id: str, updates: dict) -> dict | None:
-    state = load_state()
-    for index, record in enumerate(state.get(collection, [])):
-        if record.get("id") != record_id:
-            continue
-        state[collection][index] = {
-            **record,
-            **updates,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        save_state(state)
-        return state[collection][index]
-    return None
+    def _mutate(state: dict) -> dict | None:
+        for index, record in enumerate(state.get(collection, [])):
+            if record.get("id") != record_id:
+                continue
+            state[collection][index] = {
+                **record,
+                **updates,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            return state[collection][index]
+        return None
+
+    return mutate_state(_mutate)
 
 
 def append_event(

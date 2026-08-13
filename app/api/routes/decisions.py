@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.models.decision import DecisionCreate
+from app.models.decision import DecisionCreate, DecisionUpdate
 from app.services.action_engine import create_decision, update_decision
 from app.services.storage_service import list_records
 
@@ -19,8 +19,8 @@ def add_decision(decision: DecisionCreate):
 
 
 @router.patch("/{decision_id}")
-def patch_decision(decision_id: str, updates: dict):
-    decision = update_decision(decision_id, updates)
+def patch_decision(decision_id: str, updates: DecisionUpdate):
+    decision = update_decision(decision_id, updates.model_dump(mode="json", exclude_none=True))
     if decision is None:
         raise HTTPException(status_code=404, detail="Decision not found")
     return decision

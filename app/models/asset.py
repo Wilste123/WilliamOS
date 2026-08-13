@@ -10,5 +10,13 @@ class AssetCreate(BaseModel):
     estimated_value: float | None = None
 
 
+class AssetUpdate(BaseModel):
+    name: str | None = None
+    type: str | None = None
+    description: str | None = None
+    status: str | None = None
+    estimated_value: float | None = None
+
+
 class Asset(AssetCreate):
     id: UUID | None = None
