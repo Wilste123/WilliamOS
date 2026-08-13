@@ -7,6 +7,7 @@ class ProjectCreate(BaseModel):
     status: str = "active"
     next_action: str | None = None
     notes: str | None = None
+    asset_id: UUID | None = None
 
 
 class Project(ProjectCreate):
