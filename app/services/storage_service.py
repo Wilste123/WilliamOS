@@ -51,6 +51,8 @@ def _lock_file(handle, *, exclusive: bool) -> None:
         mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
         fcntl.flock(handle.fileno(), mode)
         return
+    if msvcrt is None:  # pragma: no cover
+        raise RuntimeError("No file locking backend available")
     mode = msvcrt.LK_LOCK if exclusive else msvcrt.LK_RLCK
     handle.seek(0)
     msvcrt.locking(handle.fileno(), mode, WINDOWS_LOCK_SIZE)
@@ -60,6 +62,8 @@ def _unlock_file(handle) -> None:
     if fcntl is not None:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         return
+    if msvcrt is None:  # pragma: no cover
+        raise RuntimeError("No file locking backend available")
     handle.seek(0)
     msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, WINDOWS_LOCK_SIZE)
 

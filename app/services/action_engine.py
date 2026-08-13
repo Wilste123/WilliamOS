@@ -120,7 +120,11 @@ def create_event(payload: dict) -> dict:
 
 
 def capture_inbox_entry(text: str) -> dict:
-    amount_match = re.search(r"\btil\s+(\d+(?:\s\d{3})*)\b", text, flags=re.IGNORECASE)
+    amount_match = re.search(
+        r"\btil\s+(\d[\d\s]*\d|\d)\s*(?:kr|nok|,-)?(?:\b|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
     amount = amount_match.group(1).replace(" ", "") if amount_match else None
     lowered = text.lower()
     suggestions = []
@@ -130,7 +134,7 @@ def capture_inbox_entry(text: str) -> dict:
             {
                 "object_type": "asset",
                 "fields": {
-                    "name": text.split(" til ")[0].strip().capitalize(),
+                    "name": re.split(r"\btil\b", text, flags=re.IGNORECASE)[0].strip(),
                     "status": "considering_purchase",
                     "estimated_value": float(amount) if amount else None,
                 },

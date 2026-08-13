@@ -26,3 +26,4 @@ class DecisionUpdate(BaseModel):
 class Decision(DecisionCreate):
     id: UUID | None = None
     decided_at: datetime | None = None
+    created_at: datetime | None = None
