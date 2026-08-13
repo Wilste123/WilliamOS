@@ -30,12 +30,18 @@ Hvis du ikke bruker det, forenkler vi.
 ## Kom i gang
 
 1. Kopier `.env.example` til `.env`
-2. Legg inn API-nøkler
+2. Legg inn API-nøkler hvis du vil bruke OpenAI og Supabase
 3. Installer avhengigheter
 4. Kjør Streamlit eller FastAPI
 
 ```bash
 pip install -r requirements.txt
+python run.py
+```
+
+eller:
+
+```bash
 streamlit run frontend/streamlit_app.py
 ```
 
@@ -44,6 +50,15 @@ eller:
 ```bash
 uvicorn app.api.main:app --reload
 ```
+
+## Hva som er bygget nå
+
+- Inbox for å fange opp nye ting brukeren vurderer eller må følge opp
+- Dashboard med prioriteringer, hendelser, dokumenter og aktivitet
+- Asset-first visning med eiendeler, prosjekter, oppgaver og beslutninger
+- Timeline/historikk via hendelser som bygges automatisk når data opprettes
+- Lokal lagring som fallback når Supabase ikke er konfigurert
+- Chat som kan utføre enkle handlinger direkte, som å opprette oppgave, eiendel, prosjekt eller beslutning
 
 ## Foreslått rekkefølge
 
