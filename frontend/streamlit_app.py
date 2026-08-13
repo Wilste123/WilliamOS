@@ -109,7 +109,14 @@ elif page == "Chat":
             st.write(prompt)
         with st.chat_message("assistant"):
             with st.spinner("WilliamOS tenker..."):
-                answer, sources = ask_agent(prompt, use_documents=use_documents)
+                # Pass all previous turns (excluding the current prompt) as history
+                # so the model remembers context across messages.
+                prior_history = [
+                    {"role": m["role"], "content": m.get("content") or ""}
+                    for m in st.session_state.messages[:-1]
+                    if m.get("role") in ("user", "assistant")
+                ]
+                answer, sources = ask_agent(prompt, use_documents=use_documents, history=prior_history)
             st.write(answer)
             if sources:
                 with st.expander("📎 Kilder brukt", expanded=False):

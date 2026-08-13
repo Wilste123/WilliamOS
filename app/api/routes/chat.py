@@ -10,6 +10,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     use_documents: bool = True
+    history: list[dict] = []
 
 
 class MemoryRequest(BaseModel):
@@ -20,7 +21,11 @@ class MemoryRequest(BaseModel):
 
 @router.post("/")
 def chat(request: ChatRequest):
-    answer, sources = ask_agent(request.message, use_documents=request.use_documents)
+    answer, sources = ask_agent(
+        request.message,
+        use_documents=request.use_documents,
+        history=request.history or None,
+    )
     return {"answer": answer, "sources": sources}
 
 
