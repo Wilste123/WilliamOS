@@ -116,17 +116,7 @@ def update_decision(decision_id: str, updates: dict) -> dict | None:
 
 
 def create_event(payload: dict) -> dict:
-    event = create_record("events", payload)
-    append_event(
-        title=f"Hendelse lagt til: {event['title']}",
-        event_type="event_logged",
-        notes=event.get("notes"),
-        asset_id=event.get("asset_id"),
-        project_id=event.get("project_id"),
-        decision_id=event.get("decision_id"),
-        event_date=event.get("event_date"),
-    )
-    return event
+    return create_record("events", payload)
 
 
 def capture_inbox_entry(text: str) -> dict:
