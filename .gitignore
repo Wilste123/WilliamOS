@@ -5,3 +5,4 @@ uploads/*
 !uploads/.gitkeep
 requests_log_local.txt
 .venv/
+.williamos/

@@ -6,17 +6,22 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-if not OPENAI_API_KEY:
-    raise ValueError(
-        "OPENAI_API_KEY mangler i .env-filen. "
-        "Lag en .env-fil i prosjektroten og legg inn OPENAI_API_KEY=din_nokkel"
-    )
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 def chat_completion(messages: list[dict], temperature: float = 0.3) -> str:
+    if client is None:
+        latest_message = next(
+            (message["content"] for message in reversed(messages) if message["role"] == "user"),
+            "",
+        )
+        return (
+            "OpenAI er ikke konfigurert ennå. "
+            "WilliamOS kjører fortsatt lokalt.\n\n"
+            f"Siste melding: {latest_message}\n"
+            "Hvis dette skal utføres i systemet, bruk kommandoer som "
+            "'lag oppgave ...', 'lag eiendel ...', 'lag prosjekt ...' eller 'lag beslutning ...'."
+        )
     try:
         response = client.chat.completions.create(
             model=MODEL,

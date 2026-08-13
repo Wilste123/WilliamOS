@@ -1,27 +1,25 @@
-from fastapi import APIRouter
-from uuid import uuid4
-from app.models.task import TaskCreate
-from app.database.supabase import get_supabase
+from fastapi import APIRouter, HTTPException
+
+from app.models.task import TaskCreate, TaskUpdate
+from app.services.action_engine import create_task as create_task_record, update_task
+from app.services.storage_service import list_records
 
 router = APIRouter()
-LOCAL_TASKS = []
 
 
 @router.get("/")
 def list_tasks():
-    supabase = get_supabase()
-    if supabase is None:
-        return LOCAL_TASKS
-    return supabase.table("tasks").select("*").order("created_at", desc=True).execute().data
+    return list_records("tasks")
 
 
 @router.post("/")
 def create_task(task: TaskCreate):
-    supabase = get_supabase()
-    payload = task.model_dump(mode="json")
-    if supabase is None:
-        payload["id"] = str(uuid4())
-        payload["completed"] = False
-        LOCAL_TASKS.append(payload)
-        return payload
-    return supabase.table("tasks").insert(payload).execute().data
+    return create_task_record(task.model_dump(mode="json"))
+
+
+@router.patch("/{task_id}")
+def patch_task(task_id: str, updates: TaskUpdate):
+    task = update_task(task_id, updates.model_dump(mode="json", exclude_none=True))
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task

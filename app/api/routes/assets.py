@@ -1,26 +1,25 @@
-from fastapi import APIRouter
-from uuid import uuid4
-from app.models.asset import AssetCreate
-from app.database.supabase import get_supabase
+from fastapi import APIRouter, HTTPException
+
+from app.models.asset import AssetCreate, AssetUpdate
+from app.services.action_engine import create_asset as create_asset_record, update_asset
+from app.services.storage_service import list_records
 
 router = APIRouter()
-LOCAL_ASSETS = []
 
 
 @router.get("/")
 def list_assets():
-    supabase = get_supabase()
-    if supabase is None:
-        return LOCAL_ASSETS
-    return supabase.table("assets").select("*").order("created_at", desc=True).execute().data
+    return list_records("assets")
 
 
 @router.post("/")
 def create_asset(asset: AssetCreate):
-    supabase = get_supabase()
-    payload = asset.model_dump(mode="json")
-    if supabase is None:
-        payload["id"] = str(uuid4())
-        LOCAL_ASSETS.append(payload)
-        return payload
-    return supabase.table("assets").insert(payload).execute().data
+    return create_asset_record(asset.model_dump(mode="json"))
+
+
+@router.patch("/{asset_id}")
+def patch_asset(asset_id: str, updates: AssetUpdate):
+    asset = update_asset(asset_id, updates.model_dump(mode="json", exclude_none=True))
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return asset
