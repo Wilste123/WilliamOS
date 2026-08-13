@@ -12,9 +12,12 @@ from app.services.action_engine import (
     capture_inbox_entry,
     create_asset,
     create_decision,
+    create_document,
     create_project,
     create_task,
     update_asset,
+    update_decision,
+    update_project,
     update_task,
 )
 
@@ -162,6 +165,25 @@ WILLIAMOS_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "update_project",
+            "description": "Oppdater et eksisterende prosjekt.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "ID til prosjektet som skal oppdateres"},
+                    "name": {"type": "string"},
+                    "status": {"type": "string", "enum": ["active", "on_hold", "done"]},
+                    "next_action": {"type": "string"},
+                    "notes": {"type": "string"},
+                    "asset_id": {"type": "string"},
+                },
+                "required": ["project_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_decision",
             "description": "Registrer en beslutning, eventuelt knyttet til en eiendel eller et prosjekt.",
             "parameters": {
@@ -188,6 +210,44 @@ WILLIAMOS_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "update_decision",
+            "description": "Oppdater en eksisterende beslutning.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "decision_id": {"type": "string", "description": "ID til beslutningen som skal oppdateres"},
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "status": {"type": "string", "enum": ["open", "decided", "paused"]},
+                    "asset_id": {"type": "string"},
+                    "project_id": {"type": "string"},
+                },
+                "required": ["decision_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_document",
+            "description": "Registrer et dokument i databasen (f.eks. etter opplasting).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "Filnavn"},
+                    "storage_path": {"type": "string", "description": "Lagringsbane"},
+                    "text_content": {"type": "string", "description": "Tekstinnhold"},
+                    "source_module": {"type": "string", "description": "Modul dokumentet tilhører"},
+                    "asset_id": {"type": "string"},
+                    "project_id": {"type": "string"},
+                },
+                "required": ["filename"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_documents",
             "description": "Hent liste over dokumenter, valgfritt filtrert på eiendel eller prosjekt.",
             "parameters": {
@@ -209,44 +269,57 @@ WILLIAMOS_TOOLS: list[dict] = [
 def _execute_tool(func_name: str, args: dict) -> object:
     clean = {k: v for k, v in args.items() if v is not None}
 
-    if func_name == "create_asset":
-        return create_asset(clean)
-    if func_name == "update_asset":
-        asset_id = clean.pop("asset_id")
-        return update_asset(asset_id, clean) or {"error": "Eiendel ikke funnet"}
-    if func_name == "list_assets":
-        return list_records("assets")
+    try:
+        if func_name == "create_asset":
+            return create_asset(clean)
+        if func_name == "update_asset":
+            asset_id = clean.pop("asset_id")
+            return update_asset(asset_id, clean) or {"error": "Eiendel ikke funnet"}
+        if func_name == "list_assets":
+            return list_records("assets")
 
-    if func_name == "create_task":
-        payload = {"priority": 2, "status": "open", **clean}
-        return create_task(payload)
-    if func_name == "update_task":
-        task_id = clean.pop("task_id")
-        return update_task(task_id, clean) or {"error": "Oppgave ikke funnet"}
-    if func_name == "list_tasks":
-        return list_records("tasks")
+        if func_name == "create_task":
+            payload = {"priority": 2, "status": "open", **clean}
+            return create_task(payload)
+        if func_name == "update_task":
+            task_id = clean.pop("task_id")
+            return update_task(task_id, clean) or {"error": "Oppgave ikke funnet"}
+        if func_name == "list_tasks":
+            return list_records("tasks")
 
-    if func_name == "create_project":
-        payload = {"status": "active", **clean}
-        return create_project(payload)
-    if func_name == "list_projects":
-        return list_records("projects")
+        if func_name == "create_project":
+            payload = {"status": "active", **clean}
+            return create_project(payload)
+        if func_name == "update_project":
+            project_id = clean.pop("project_id")
+            return update_project(project_id, clean) or {"error": "Prosjekt ikke funnet"}
+        if func_name == "list_projects":
+            return list_records("projects")
 
-    if func_name == "create_decision":
-        payload = {"status": "open", **clean}
-        return create_decision(payload)
-    if func_name == "list_decisions":
-        return list_records("decisions")
+        if func_name == "create_decision":
+            payload = {"status": "open", **clean}
+            return create_decision(payload)
+        if func_name == "update_decision":
+            decision_id = clean.pop("decision_id")
+            return update_decision(decision_id, clean) or {"error": "Beslutning ikke funnet"}
+        if func_name == "list_decisions":
+            return list_records("decisions")
 
-    if func_name == "list_documents":
-        docs = list_records("documents")
-        if clean.get("asset_id"):
-            docs = [d for d in docs if d.get("asset_id") == clean["asset_id"]]
-        if clean.get("project_id"):
-            docs = [d for d in docs if d.get("project_id") == clean["project_id"]]
-        return docs
+        if func_name == "create_document":
+            payload = {"source_module": "chat", **clean}
+            return create_document(payload)
+        if func_name == "list_documents":
+            docs = list_records("documents")
+            if clean.get("asset_id"):
+                docs = [d for d in docs if d.get("asset_id") == clean["asset_id"]]
+            if clean.get("project_id"):
+                docs = [d for d in docs if d.get("project_id") == clean["project_id"]]
+            return docs
 
-    return {"error": f"Ukjent funksjon: {func_name}"}
+        return {"error": f"Ukjent funksjon: {func_name}"}
+
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"Lagring feilet for {func_name}: {exc}"}
 
 
 # ---------------------------------------------------------------------------
