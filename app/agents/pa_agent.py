@@ -5,6 +5,7 @@ from app.services.openai_service import chat_completion
 from app.services.memory_service import get_recent_memory_text
 from app.agents.self_evolve import log_request_locally
 from app.services.memory_service import save_memory
+from app.services.retrieval_service import build_document_context
 from app.services.action_engine import (
     build_dashboard_summary,
     capture_inbox_entry,
@@ -90,12 +91,15 @@ def handle_actions(message: str):
         "handled": False
     }
 
-def ask_agent(message: str) -> str:
-
+def ask_agent(message: str, *, use_documents: bool = True) -> tuple[str, list[dict]]:
+    """
+    Returns (answer, sources) where sources is a list of document result dicts.
+    sources is empty when no documents were used or use_documents is False.
+    """
     action_result = handle_actions(message)
 
     if action_result["handled"]:
-        return action_result["response"]
+        return action_result["response"], []
 
     log_request_locally(message)
 
@@ -105,7 +109,15 @@ def ask_agent(message: str) -> str:
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "system", "content": f"Relevant saved memory:\n{memory}"},
-        {"role": "user", "content": message},
     ]
 
-    return chat_completion(messages)
+    sources: list[dict] = []
+    if use_documents:
+        doc_context, sources = build_document_context(message)
+        if doc_context:
+            messages.append({"role": "system", "content": doc_context})
+
+    messages.append({"role": "user", "content": message})
+
+    answer = chat_completion(messages)
+    return answer, sources

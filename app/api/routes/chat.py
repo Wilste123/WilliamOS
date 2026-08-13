@@ -9,6 +9,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str
+    use_documents: bool = True
 
 
 class MemoryRequest(BaseModel):
@@ -19,8 +20,8 @@ class MemoryRequest(BaseModel):
 
 @router.post("/")
 def chat(request: ChatRequest):
-    answer = ask_agent(request.message)
-    return {"answer": answer}
+    answer, sources = ask_agent(request.message, use_documents=request.use_documents)
+    return {"answer": answer, "sources": sources}
 
 
 @router.post("/memory")
