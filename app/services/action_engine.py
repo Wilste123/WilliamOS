@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.storage_service import append_event, create_record, list_records, update_record
 
@@ -87,7 +87,7 @@ def create_document(payload: dict) -> dict:
 
 def create_decision(payload: dict) -> dict:
     if payload.get("status") == "decided" and not payload.get("decided_at"):
-        payload["decided_at"] = datetime.utcnow().isoformat()
+        payload["decided_at"] = datetime.now(timezone.utc).isoformat()
     decision = create_record("decisions", payload)
     append_event(
         title=f"Beslutning registrert: {decision['title']}",
@@ -102,7 +102,7 @@ def create_decision(payload: dict) -> dict:
 
 def update_decision(decision_id: str, updates: dict) -> dict | None:
     if updates.get("status") == "decided" and not updates.get("decided_at"):
-        updates["decided_at"] = datetime.utcnow().isoformat()
+        updates["decided_at"] = datetime.now(timezone.utc).isoformat()
     decision = update_record("decisions", decision_id, updates)
     if decision:
         append_event(
@@ -120,7 +120,7 @@ def create_event(payload: dict) -> dict:
 
 
 def capture_inbox_entry(text: str) -> dict:
-    amount_match = re.search(r"(\d[\d\s]*)", text)
+    amount_match = re.search(r"(\d+(?:\s\d{3})*)", text)
     amount = amount_match.group(1).replace(" ", "") if amount_match else None
     lowered = text.lower()
     suggestions = []

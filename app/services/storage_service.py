@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -61,7 +61,7 @@ def create_record(collection: str, payload: dict) -> dict:
     state = load_state()
     record = {
         "id": str(uuid4()),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         **payload,
     }
     state[collection].append(record)
@@ -77,7 +77,7 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
         state[collection][index] = {
             **record,
             **updates,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         save_state(state)
         return state[collection][index]

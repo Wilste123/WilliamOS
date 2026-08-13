@@ -49,7 +49,7 @@ def handle_actions(message: str):
         match = re.match(pattern, lowered)
         if not match:
             continue
-        content = msg[match.start(len(match.groups())):].strip()
+        content = match.group(match.lastindex or 0).strip()
         if action_type == "task":
             task = create_task({"title": content, "priority": 2, "status": "open"})
             return {"handled": True, "response": f"✅ Oppgave opprettet: {task['title']}"}

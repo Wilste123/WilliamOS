@@ -44,16 +44,6 @@ def _show_collection(records: list[dict], columns: list[str]) -> None:
     st.dataframe([{column: record.get(column) for column in columns} for record in records], use_container_width=True)
 
 
-assets = list_records("assets")
-projects = list_records("projects")
-tasks = list_records("tasks")
-decisions = list_records("decisions")
-events = list_records("events")
-documents = list_records("documents")
-asset_options = _options(assets, "name")
-project_options = _options(projects, "name")
-decision_options = _options(decisions, "title")
-
 with st.sidebar:
     st.header("Navigasjon")
     page = st.radio(
@@ -116,6 +106,11 @@ elif page == "Chat":
 
 elif page == "Oppgaver":
     st.subheader("Oppgaver")
+    assets = list_records("assets")
+    projects = list_records("projects")
+    tasks = list_records("tasks")
+    asset_options = _options(assets, "name")
+    project_options = _options(projects, "name")
     with st.form("task_form"):
         title = st.text_input("Tittel")
         description = st.text_area("Beskrivelse")
@@ -149,6 +144,7 @@ elif page == "Oppgaver":
 
 elif page == "Eiendeler":
     st.subheader("Eiendeler")
+    assets = list_records("assets")
     with st.form("asset_form"):
         name = st.text_input("Navn")
         asset_type = st.text_input("Type", placeholder="Bolig, bil, båt ...")
@@ -171,6 +167,9 @@ elif page == "Eiendeler":
 
 elif page == "Prosjekter":
     st.subheader("Prosjekter")
+    assets = list_records("assets")
+    projects = list_records("projects")
+    asset_options = _options(assets, "name")
     with st.form("project_form"):
         name = st.text_input("Prosjektnavn")
         status = st.selectbox("Status", ["active", "on_hold", "done"])
@@ -193,6 +192,11 @@ elif page == "Prosjekter":
 
 elif page == "Beslutninger":
     st.subheader("Beslutninger")
+    assets = list_records("assets")
+    projects = list_records("projects")
+    decisions = list_records("decisions")
+    asset_options = _options(assets, "name")
+    project_options = _options(projects, "name")
     with st.form("decision_form"):
         title = st.text_input("Tittel")
         summary = st.text_area("Beskrivelse")
@@ -225,6 +229,13 @@ elif page == "Beslutninger":
 
 elif page == "Hendelser":
     st.subheader("Hendelser")
+    assets = list_records("assets")
+    projects = list_records("projects")
+    decisions = list_records("decisions")
+    events = list_records("events")
+    asset_options = _options(assets, "name")
+    project_options = _options(projects, "name")
+    decision_options = _options(decisions, "title")
     with st.form("event_form"):
         title = st.text_input("Tittel")
         event_type = st.selectbox("Type", ["general", "maintenance", "meeting", "deadline", "purchase"])
@@ -265,6 +276,11 @@ elif page == "Minne":
 
 elif page == "Dokumenter":
     st.subheader("Dokumenter")
+    assets = list_records("assets")
+    projects = list_records("projects")
+    documents = list_records("documents")
+    asset_options = _options(assets, "name")
+    project_options = _options(projects, "name")
     uploaded = st.file_uploader("Last opp PDF, bilde eller fil", type=None)
     asset_name = st.selectbox("Knytt til eiendel", list(asset_options.keys()), key="document_asset")
     project_name = st.selectbox("Knytt til prosjekt", list(project_options.keys()), key="document_project")
