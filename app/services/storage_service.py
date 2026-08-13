@@ -11,7 +11,10 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None
-    import msvcrt
+    try:
+        import msvcrt
+    except ImportError:
+        msvcrt = None
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -88,8 +91,7 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
-    _ensure_storage()
-    with DATA_FILE.open("r+", encoding="utf-8") as handle:
+    with _open_storage_file() as handle:
         _lock_file(handle, exclusive=True)
         try:
             handle.seek(0)
@@ -100,8 +102,7 @@ def save_state(state: dict) -> None:
 
 
 def mutate_state(mutator: Callable[[dict], Any]) -> Any:
-    _ensure_storage()
-    with DATA_FILE.open("r+", encoding="utf-8") as handle:
+    with _open_storage_file() as handle:
         _lock_file(handle, exclusive=True)
         try:
             state = _read_state(handle)
@@ -112,6 +113,15 @@ def mutate_state(mutator: Callable[[dict], Any]) -> Any:
             return result
         finally:
             _unlock_file(handle)
+
+
+def _open_storage_file():
+    _ensure_storage()
+    try:
+        return DATA_FILE.open("r+", encoding="utf-8")
+    except FileNotFoundError:
+        _ensure_storage()
+        return DATA_FILE.open("r+", encoding="utf-8")
 
 
 def list_records(collection: str) -> list[dict]:

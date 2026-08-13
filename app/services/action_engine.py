@@ -121,11 +121,11 @@ def create_event(payload: dict) -> dict:
 
 def capture_inbox_entry(text: str) -> dict:
     amount_match = re.search(
-        r"\btil\s+(\d[\d\s]*\d|\d)\s*(?:kr|nok|,-)?(?:\b|$)",
+        r"\btil\s+(\d[\d\s.]*(?:\d)?)\s*(?:kr|nok|,-)?(?:\b|$)",
         text,
         flags=re.IGNORECASE,
     )
-    amount = amount_match.group(1).replace(" ", "") if amount_match else None
+    amount = amount_match.group(1).replace(" ", "").replace(".", "") if amount_match else None
     lowered = text.lower()
     suggestions = []
 
