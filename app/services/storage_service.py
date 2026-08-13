@@ -1,9 +1,14 @@
 import json
+import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+from app.database.supabase import get_supabase
+
+logger = logging.getLogger(__name__)
 
 msvcrt = None
 
@@ -125,12 +130,30 @@ def _open_storage_file():
 
 
 def list_records(collection: str) -> list[dict]:
+    """Return all records for *collection*, preferring Supabase when configured."""
+    sb = get_supabase()
+    if sb is not None:
+        try:
+            response = sb.table(collection).select("*").order("created_at", desc=True).execute()
+            return response.data or []
+        except Exception as exc:
+            logger.warning("Supabase list_records failed for %s, falling back to local store: %s", collection, exc)
+
     state = load_state()
     records = state.get(collection, [])
     return sorted(records, key=lambda item: item.get("created_at", ""), reverse=True)
 
 
 def get_record(collection: str, record_id: str) -> dict | None:
+    """Return a single record by id, preferring Supabase when configured."""
+    sb = get_supabase()
+    if sb is not None:
+        try:
+            response = sb.table(collection).select("*").eq("id", record_id).maybe_single().execute()
+            return response.data
+        except Exception as exc:
+            logger.warning("Supabase get_record failed for %s/%s, falling back: %s", collection, record_id, exc)
+
     for record in load_state().get(collection, []):
         if record.get("id") == record_id:
             return record
@@ -138,6 +161,22 @@ def get_record(collection: str, record_id: str) -> dict | None:
 
 
 def create_record(collection: str, payload: dict) -> dict:
+    """Persist a new record, preferring Supabase when configured."""
+    sb = get_supabase()
+    if sb is not None:
+        try:
+            record = {
+                "id": str(uuid4()),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                **payload,
+            }
+            response = sb.table(collection).insert(record).execute()
+            if response.data:
+                return response.data[0]
+            raise RuntimeError(f"Supabase insert returned no data for {collection}")
+        except Exception as exc:
+            logger.warning("Supabase create_record failed for %s, falling back to local store: %s", collection, exc)
+
     def _mutate(state: dict) -> dict:
         record = {
             "id": str(uuid4()),
@@ -151,6 +190,18 @@ def create_record(collection: str, payload: dict) -> dict:
 
 
 def update_record(collection: str, record_id: str, updates: dict) -> dict | None:
+    """Update an existing record, preferring Supabase when configured."""
+    sb = get_supabase()
+    if sb is not None:
+        try:
+            patch = {**updates, "updated_at": datetime.now(timezone.utc).isoformat()}
+            response = sb.table(collection).update(patch).eq("id", record_id).execute()
+            if response.data:
+                return response.data[0]
+            return None
+        except Exception as exc:
+            logger.warning("Supabase update_record failed for %s/%s, falling back: %s", collection, record_id, exc)
+
     def _mutate(state: dict) -> dict | None:
         for index, record in enumerate(state.get(collection, [])):
             if record.get("id") != record_id:
