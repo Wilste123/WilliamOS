@@ -89,9 +89,18 @@ elif page == "Inbox":
 
 elif page == "Chat":
     st.subheader("PA-chat")
+
+    use_documents = st.toggle("Bruk opplastede dokumenter", value=True, help="La chatten søke i dokumenter lastet opp fra alle moduler")
+
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
+            if msg.get("sources"):
+                with st.expander("📎 Kilder brukt", expanded=False):
+                    for src in msg["sources"]:
+                        st.caption(f"**{src['filename']}** (modul: {src.get('source_module') or 'ukjent'}) — score: {src['score']:.2f}")
+                        if src.get("snippet"):
+                            st.text(src["snippet"][:300])
 
     prompt = st.chat_input("Hva trenger du hjelp med?")
     if prompt:
@@ -100,9 +109,15 @@ elif page == "Chat":
             st.write(prompt)
         with st.chat_message("assistant"):
             with st.spinner("WilliamOS tenker..."):
-                answer = ask_agent(prompt)
+                answer, sources = ask_agent(prompt, use_documents=use_documents)
             st.write(answer)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+            if sources:
+                with st.expander("📎 Kilder brukt", expanded=False):
+                    for src in sources:
+                        st.caption(f"**{src['filename']}** (modul: {src.get('source_module') or 'ukjent'}) — score: {src['score']:.2f}")
+                        if src.get("snippet"):
+                            st.text(src["snippet"][:300])
+        st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
 
 elif page == "Oppgaver":
     st.subheader("Oppgaver")
@@ -292,6 +307,7 @@ elif page == "Dokumenter":
                     **saved,
                     "asset_id": asset_options[asset_name],
                     "project_id": project_options[project_name],
+                    "source_module": "documents",
                 }
             )
             st.success("Dokument lagret lokalt")

@@ -1,8 +1,11 @@
+import logging
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -32,12 +35,9 @@ def chat_completion(messages: list[dict], temperature: float = 0.3) -> str:
         return response.choices[0].message.content or ""
 
     except Exception as e:
+        logger.error("OpenAI API call failed: %s: %s", type(e).__name__, e)
         return (
-            "OpenAI-kallet feilet.\n\n"
-            f"Modell brukt: {MODEL}\n"
-            f"Feiltype: {type(e).__name__}\n"
-            f"Feilmelding: {str(e)}\n\n"
-            "Sjekk dette:\n"
+            "OpenAI-kallet feilet. Sjekk dette:\n"
             "1. At OPENAI_API_KEY ligger i .env\n"
             "2. At API-nøkkelen er gyldig\n"
             "3. At OPENAI_MODEL finnes for kontoen din\n"
