@@ -7,6 +7,8 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from app.services.user_context import get_current_assistant_name
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ _API_ERROR_MSG = (
 
 
 def chat_completion(messages: list[dict], temperature: float = 0.3) -> str:
+    assistant_name = get_current_assistant_name()
     if client is None:
         latest_message = next(
             (message["content"] for message in reversed(messages) if message["role"] == "user"),
@@ -39,7 +42,7 @@ def chat_completion(messages: list[dict], temperature: float = 0.3) -> str:
         )
         return (
             "OpenAI er ikke konfigurert ennå. "
-            "WilliamOS kjører fortsatt lokalt.\n\n"
+            f"{assistant_name} kjører fortsatt lokalt.\n\n"
             f"Siste melding: {latest_message}\n"
             "Hvis dette skal utføres i systemet, bruk kommandoer som "
             "'lag oppgave ...', 'lag eiendel ...', 'lag prosjekt ...' eller 'lag beslutning ...'."
@@ -72,8 +75,9 @@ def chat_completion_with_tools(
     until the model stops requesting tool calls or ``max_iterations`` is
     exhausted.
     """
+    assistant_name = get_current_assistant_name()
     if client is None:
-        return _NO_CLIENT_MSG
+        return _NO_CLIENT_MSG.replace("WilliamOS", assistant_name)
 
     current_messages = list(messages)
 

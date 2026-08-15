@@ -7,6 +7,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from app.services.user_context import clear_current_user, set_current_user
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,6 +88,7 @@ def _patch_supabase(monkeypatch, fake_client=None):
     from app.services import storage_service
     client = fake_client if fake_client is not None else _make_fake_supabase()
     monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    clear_current_user()
     return client
 
 
@@ -342,3 +345,27 @@ class TestSupabaseRequired:
 
         with pytest.raises(RuntimeError, match="timeout"):
             storage_service.list_records("assets")
+
+
+class TestUserScopedStorage:
+    def test_user_scoped_records_are_filtered(self, monkeypatch):
+        _patch_supabase(
+            monkeypatch,
+            _make_fake_supabase(
+                {
+                    "tasks": [
+                        {"id": "1", "title": "Mine", "user_id": "user-1", "created_at": "2026-01-01T00:00:00+00:00"},
+                        {"id": "2", "title": "Andre", "user_id": "user-2", "created_at": "2026-01-01T00:00:00+00:00"},
+                    ]
+                }
+            ),
+        )
+        from app.services.storage_service import list_records
+
+        set_current_user("user-1", {"assistant_name": "WilliamOS"})
+        try:
+            tasks = list_records("tasks")
+        finally:
+            clear_current_user()
+
+        assert [task["title"] for task in tasks] == ["Mine"]

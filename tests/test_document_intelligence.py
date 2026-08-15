@@ -8,6 +8,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from app.services.user_context import clear_current_user
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,6 +37,22 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
     """Build a minimal in-memory Supabase stub that supports CRUD + Storage."""
     store = records_by_collection if records_by_collection is not None else {}
     bucket_store: dict[str, dict[str, bytes]] = {}
+
+    class _Auth:
+        def get_user(self, _jwt=None):
+            user = type(
+                "User",
+                (),
+                {
+                    "id": "user-1",
+                    "email": "user@example.com",
+                    "user_metadata": {
+                        "full_name": "Test User",
+                        "assistant_name": "Milo",
+                    },
+                },
+            )()
+            return type("UserResponse", (), {"user": user})()
 
     class _Query:
         def __init__(self, collection):
@@ -104,6 +122,7 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
     class _FakeClient:
         def __init__(self):
             self.storage = _Storage()
+            self.auth = _Auth()
 
         def table(self, name):
             return _Query(name)
@@ -115,10 +134,12 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
 
 def _patch_supabase(monkeypatch, fake_client=None):
     client = fake_client if fake_client is not None else _make_fake_supabase()
-    from app.services import document_storage, storage_service
+    from app.services import auth_service, document_storage, storage_service
 
     monkeypatch.setattr(document_storage, "get_supabase", lambda: client)
     monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    monkeypatch.setattr(auth_service, "get_supabase", lambda: client)
+    clear_current_user()
     return client
 
 
@@ -358,10 +379,12 @@ class TestDocumentUploadAPI:
         from fastapi.testclient import TestClient
         from app.api.main import app
         fake_client = _patch_supabase(monkeypatch)
+        headers = {"Authorization": "Bearer " + "test-token"}
 
         client = TestClient(app)
         response = client.post(
             "/documents/upload",
+            headers=headers,
             data={"source_module": "projects"},
             files={"file": ("notes.txt", b"Project meeting notes content", "text/plain")},
         )
@@ -369,7 +392,7 @@ class TestDocumentUploadAPI:
         body = response.json()
         assert body["source_module"] == "projects"
         assert body["text_content"] == "Project meeting notes content"
-        assert body["storage_path"].startswith("projects/")
+        assert body["storage_path"].startswith("user-1/projects/")
         assert fake_client.bucket_store["documents"][body["storage_path"]] == b"Project meeting notes content"
 
     def test_search_endpoint(self, monkeypatch):
@@ -381,9 +404,14 @@ class TestDocumentUploadAPI:
 
         doc_store = _make_store_with_doc("Annual budget summary for the property portfolio.")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
+        headers = {"Authorization": "Bearer " + "test-token"}
 
         client = TestClient(app)
-        response = client.get("/documents/search", params={"q": "budget property"})
+        response = client.get(
+            "/documents/search",
+            params={"q": "budget property"},
+            headers=headers,
+        )
         assert response.status_code == 200
         body = response.json()
         assert "results" in body
@@ -400,9 +428,14 @@ class TestDocumentUploadAPI:
 
         doc_store = _make_store_with_doc("Invoice for boat service: 15 000 NOK")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
+        headers = {"Authorization": "Bearer " + "test-token"}
 
         client = TestClient(app)
-        response = client.post("/chat/", json={"message": "boat invoice service", "use_documents": True})
+        response = client.post(
+            "/chat/",
+            json={"message": "boat invoice service", "use_documents": True},
+            headers=headers,
+        )
         assert response.status_code == 200
         body = response.json()
         assert "answer" in body

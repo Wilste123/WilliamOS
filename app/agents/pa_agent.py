@@ -7,6 +7,7 @@ from app.agents.self_evolve import log_request_locally
 from app.services.memory_service import save_memory
 from app.services.retrieval_service import build_document_context
 from app.services.storage_service import list_records
+from app.services.user_context import get_current_assistant_name, get_current_user_profile
 from app.services.action_engine import (
     build_dashboard_summary,
     capture_inbox_entry,
@@ -438,9 +439,19 @@ def ask_agent(
 
     memory = get_recent_memory_text()
     system_prompt = load_system_prompt()
+    current_profile = get_current_user_profile()
+    assistant_name = get_current_assistant_name()
+    owner_name = current_profile.get("full_name") or current_profile.get("email") or "brukeren"
 
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
+        {
+            "role": "system",
+            "content": (
+                f"Du er {assistant_name}, den personlige assistenten til {owner_name}. "
+                f"Hvis du omtaler deg selv, bruk navnet {assistant_name}."
+            ),
+        },
         {"role": "system", "content": f"Relevant saved memory:\n{memory}"},
     ]
 

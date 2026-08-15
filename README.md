@@ -32,7 +32,8 @@ Hvis du ikke bruker det, forenkler vi.
 1. Kopier `.env.example` til `.env`
 2. Legg inn API-nøkler for OpenAI og Supabase
 3. Installer avhengigheter
-4. Kjør Streamlit eller FastAPI
+4. Kjør SQL-migrasjonene i `migrations/` i Supabase
+5. Kjør Streamlit eller FastAPI
 
 Påkrevde miljøvariabler:
 
@@ -64,6 +65,7 @@ uvicorn app.api.main:app --reload
 
 ## Hva som er bygget nå
 
+- Innlogging/registrering med Supabase Auth og egen profil (navn, alder, assistentnavn)
 - Inbox for å fange opp nye ting brukeren vurderer eller må følge opp
 - Dashboard med prioriteringer, hendelser, dokumenter og aktivitet
 - Asset-first visning med eiendeler, prosjekter, oppgaver og beslutninger
@@ -71,6 +73,7 @@ uvicorn app.api.main:app --reload
 - Supabase som eneste lagringslag — operasjoner feiler tydelig hvis Supabase ikke er konfigurert
 - Dokumenter lagres i Supabase Storage-bucketen konfigurert via `DOCUMENTS_BUCKET` (standard: `documents`)
 - Chat som kan utføre enkle handlinger direkte, som å opprette oppgave, eiendel, prosjekt eller beslutning
+- Alle lagrede data er knyttet til innlogget bruker og filtreres per bruker
 
 ## Supabase Storage-oppsett for dokumenter
 

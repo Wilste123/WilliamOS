@@ -12,6 +12,7 @@ def render_chat() -> None:
     context persists across reruns within the same browser session.
     """
     st.subheader("PA-chat")
+    assistant_name = st.session_state.get("current_user", {}).get("assistant_name", "WilliamOS")
 
     use_documents = st.toggle(
         "Bruk opplastede dokumenter",
@@ -40,7 +41,7 @@ def render_chat() -> None:
             st.write(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("WilliamOS tenker..."):
+            with st.spinner(f"{assistant_name} tenker..."):
                 answer, sources = ask_agent(
                     prompt,
                     use_documents=use_documents,

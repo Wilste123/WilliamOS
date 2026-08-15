@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.database.supabase import get_supabase
+from app.services.user_context import get_current_user_id
 
 MAX_TEXT_BYTES = 50_000
 TEXT_EXTENSIONS = {
@@ -71,7 +72,12 @@ def upload_document(
 ) -> dict:
     storage = _require_storage("upload_document")
     safe_name = Path(filename).name.replace("/", "_").replace("\\", "_") or "document"
-    storage_path = f"{_sanitize_path_component(source_module)}/{uuid4()}_{safe_name}"
+    current_user_id = get_current_user_id()
+    module_prefix = _sanitize_path_component(source_module)
+    if current_user_id:
+        storage_path = f"{_sanitize_path_component(current_user_id)}/{module_prefix}/{uuid4()}_{safe_name}"
+    else:
+        storage_path = f"{module_prefix}/{uuid4()}_{safe_name}"
     file_options = {
         "content-type": content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream",
         "upsert": "false",
@@ -93,6 +99,12 @@ def read_document_text(storage_path: str, filename: str | None = None) -> str | 
 
 def list_document_objects(path: str | None = None) -> list[dict]:
     storage = _require_storage("list_document_objects")
+    current_user_id = get_current_user_id()
+    if current_user_id:
+        prefix = _sanitize_path_component(current_user_id)
+        if path:
+            prefix = f"{prefix}/{_sanitize_path_component(path)}"
+        return storage.list(path=prefix)
     return storage.list(path=path or "")
 
 

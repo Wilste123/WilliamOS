@@ -1,4 +1,4 @@
-from app.database.supabase import get_supabase
+from app.services.storage_service import create_record, list_records
 
 LOCAL_MEMORY = [
     "WilliamOS er første prototype for HouseOS, LifeOS og self-evolve.",
@@ -7,22 +7,18 @@ LOCAL_MEMORY = [
 
 
 def get_recent_memory_text(limit: int = 20) -> str:
-    """Fetches memory from Supabase if configured. Falls back to local starter memory."""
-    supabase = get_supabase()
-    if supabase is None:
-        return "\n".join(f"- {m}" for m in LOCAL_MEMORY)
+    """Fetches memory from storage when available. Falls back to local starter memory."""
     try:
-        rows = supabase.table("memory_items").select("value").limit(limit).execute().data
+        rows = list_records("memory_items")[:limit]
         return "\n".join(f"- {r['value']}" for r in rows)
     except Exception:
         return "\n".join(f"- {m}" for m in LOCAL_MEMORY)
 
 
 def save_memory(value: str, key: str | None = None, category: str | None = None) -> dict:
-    supabase = get_supabase()
-    if supabase is None:
+    try:
+        row = create_record("memory_items", {"value": value, "key": key, "category": category})
+        return {"saved": True, "mode": "supabase", "data": row}
+    except Exception:
         LOCAL_MEMORY.append(value)
         return {"saved": True, "mode": "local", "value": value}
-    payload = {"value": value, "key": key, "category": category}
-    result = supabase.table("memory_items").insert(payload).execute()
-    return {"saved": True, "mode": "supabase", "data": result.data}
