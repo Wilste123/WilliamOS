@@ -1,8 +1,8 @@
-"""Dashboard page — renders metrics, priorities, events, and recent activity."""
+"""Dashboard page — renders metrics, weekly brief, and recent activity."""
 
 import streamlit as st
 
-from app.services.action_engine import build_dashboard_summary
+from app.services.action_engine import build_dashboard_summary, build_weekly_brief
 from frontend.components.record_helpers import render_collection
 
 
@@ -11,6 +11,7 @@ def render_dashboard() -> None:
     st.subheader("Dashboard")
     dashboard = build_dashboard_summary()
     metrics = dashboard["metrics"]
+    brief = build_weekly_brief()
 
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Eiendeler", metrics["assets"])
@@ -19,7 +20,10 @@ def render_dashboard() -> None:
     col4.metric("Dokumenter", metrics["documents"])
     col5.metric("Åpne beslutninger", metrics["open_decisions"])
 
-    st.markdown("### Prioriteter denne uka")
+    st.markdown("### Hva bør du gjøre denne uka?")
+    st.markdown(brief["summary_text"])
+
+    st.markdown("### Prioriterte oppgaver")
     render_collection(dashboard["priorities"], ["title", "priority", "due_date", "status"])
 
     st.markdown("### Kommende hendelser")

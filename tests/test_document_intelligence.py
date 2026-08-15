@@ -298,20 +298,22 @@ class TestRetrievalService:
 
 class TestAskAgentWithDocuments:
 
-    def _setup_agent(self, monkeypatch, doc_store, captured_messages):
-        """Patch storage and OpenAI so we can inspect the messages sent."""
-        import app.services.retrieval_service as rs
+    def _patch_agent_deps(self, monkeypatch, doc_store=None):
+        import app.agents.pa_agent as pa
         import app.services.openai_service as oai
+        import app.services.retrieval_service as rs
 
-        monkeypatch.setattr(rs, "list_records", lambda _: doc_store.get("documents", []))
-        monkeypatch.setattr(oai, "client", None)  # force local fallback
+        monkeypatch.setattr(pa, "log_request", lambda request_text: None)
+        monkeypatch.setattr(pa, "get_recent_memory_text", lambda limit=20: "")
+        monkeypatch.setattr(oai, "client", None)
+        documents = doc_store.get("documents", []) if doc_store else []
+        monkeypatch.setattr(rs, "list_records", lambda _: documents)
 
     def test_sources_returned_when_doc_matches(self, monkeypatch):
         from app.agents.pa_agent import ask_agent
-        import app.services.retrieval_service as rs
 
         store = _make_store_with_doc("Boat hull repair scheduled for June 2026.", source_module="tasks")
-        monkeypatch.setattr(rs, "list_records", lambda _: store["documents"])
+        self._patch_agent_deps(monkeypatch, store)
 
         answer, sources = ask_agent("boat hull repair", use_documents=True)
         assert isinstance(answer, str)
@@ -320,10 +322,9 @@ class TestAskAgentWithDocuments:
 
     def test_no_sources_when_use_documents_false(self, monkeypatch):
         from app.agents.pa_agent import ask_agent
-        import app.services.retrieval_service as rs
 
         store = _make_store_with_doc("Boat hull repair scheduled for June 2026.", source_module="tasks")
-        monkeypatch.setattr(rs, "list_records", lambda _: store["documents"])
+        self._patch_agent_deps(monkeypatch, store)
 
         answer, sources = ask_agent("boat hull repair", use_documents=False)
         assert sources == []
@@ -338,11 +339,8 @@ class TestAskAgentWithDocuments:
 
     def test_openai_fallback_includes_answer(self, monkeypatch):
         from app.agents.pa_agent import ask_agent
-        import app.services.openai_service as oai
-        import app.services.retrieval_service as rs
 
-        monkeypatch.setattr(oai, "client", None)
-        monkeypatch.setattr(rs, "list_records", lambda _: [])
+        self._patch_agent_deps(monkeypatch)
 
         answer, sources = ask_agent("hva er status?", use_documents=True)
         assert isinstance(answer, str)

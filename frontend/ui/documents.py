@@ -27,14 +27,14 @@ def render_documents() -> None:
 
     if uploaded is not None:
         if st.button("Lagre dokument"):
-            doc = save_document(
+            save_document(
                 uploaded.name,
                 uploaded.getvalue(),
                 asset_id=asset_options[asset_name],
                 project_id=project_options[project_name],
             )
-            st.success("Dokument lagret lokalt")
-            st.json(doc)
+            st.success("Dokument lagret i Supabase")
+            st.rerun()
 
     st.markdown("### Dokumenter")
     render_collection(documents, ["filename", "storage_path", "created_at"])

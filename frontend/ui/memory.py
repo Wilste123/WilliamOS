@@ -17,8 +17,9 @@ def render_memory() -> None:
         submitted = st.form_submit_button("Lagre minne")
 
     if submitted and value:
-        result = save_memory(value=value, key=key or None, category=category or None)
-        st.success(f"Lagret: {result['mode']}")
+        save_memory(value=value, key=key or None, category=category or None)
+        st.success("Lagret i Supabase")
+        st.rerun()
 
     st.markdown("### Lagret kontekst")
     st.text(get_recent_memory_text())

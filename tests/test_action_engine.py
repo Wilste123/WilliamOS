@@ -206,3 +206,39 @@ class TestBuildDashboardSummary:
         create_project({"name": "Done", "status": "done"})
         dash = build_dashboard_summary()
         assert all(p["status"] == "active" for p in dash["active_projects"])
+
+
+class TestApplyInboxSuggestion:
+    def test_apply_asset_suggestion_creates_asset(self, monkeypatch):
+        store: dict = {}
+        _patch_supabase(monkeypatch, _make_fake_supabase(store))
+        from app.services.action_engine import apply_inbox_suggestion, capture_inbox_entry
+        from app.services.storage_service import list_records
+
+        inbox_item = capture_inbox_entry("Vurderer å kjøpe Pioner 320 til 25000")
+        result = apply_inbox_suggestion(inbox_item["id"], 0)
+
+        assert result["object_type"] == "asset"
+        assert list_records("assets")
+        updated = next(i for i in list_records("inbox_items") if i["id"] == inbox_item["id"])
+        assert updated["status"] in {"partial", "processed"}
+
+    def test_apply_invalid_index_raises(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import apply_inbox_suggestion, capture_inbox_entry
+
+        inbox_item = capture_inbox_entry("Hei hei")
+        with pytest.raises(ValueError, match="Ugyldig forslagsindeks"):
+            apply_inbox_suggestion(inbox_item["id"], 0)
+
+
+class TestBuildWeeklyBrief:
+    def test_weekly_brief_contains_summary_text(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import build_weekly_brief, create_task
+
+        create_task({"title": "Viktig oppgave", "priority": 3, "status": "open"})
+        brief = build_weekly_brief()
+        assert "summary_text" in brief
+        assert "Viktig oppgave" in brief["summary_text"]
+        assert brief["metrics"]["open_tasks"] >= 1

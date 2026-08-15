@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from app.agents.pa_agent import ask_agent
 from app.services.memory_service import save_memory
-from app.agents.self_evolve import analyze_requests_locally
+from app.agents.self_evolve import analyze_requests
 
 router = APIRouter()
 
@@ -36,4 +36,4 @@ def remember(request: MemoryRequest):
 
 @router.get("/self-evolve")
 def self_evolve_status():
-    return analyze_requests_locally()
+    return analyze_requests()

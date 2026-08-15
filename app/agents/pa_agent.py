@@ -3,12 +3,13 @@ import re
 
 from app.services.openai_service import chat_completion, chat_completion_with_tools
 from app.services.memory_service import get_recent_memory_text
-from app.agents.self_evolve import log_request_locally
+from app.agents.self_evolve import log_request
 from app.services.memory_service import save_memory
 from app.services.retrieval_service import build_document_context
 from app.services.storage_service import list_records
 from app.services.action_engine import (
     build_dashboard_summary,
+    build_weekly_brief,
     capture_inbox_entry,
     create_asset,
     create_decision,
@@ -248,6 +249,14 @@ WILLIAMOS_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_weekly_brief",
+            "description": "Hent ukens brief med prioriterte oppgaver, aktive prosjekter, åpne beslutninger og kommende hendelser. Bruk når brukeren spør hva de bør gjøre denne uka.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_documents",
             "description": "Hent liste over dokumenter, valgfritt filtrert på eiendel eller prosjekt.",
             "parameters": {
@@ -308,6 +317,8 @@ def _execute_tool(func_name: str, args: dict) -> object:
         if func_name == "create_document":
             payload = {"source_module": "chat", **clean}
             return create_document(payload)
+        if func_name == "get_weekly_brief":
+            return build_weekly_brief()
         if func_name == "list_documents":
             docs = list_records("documents")
             if clean.get("asset_id"):
@@ -381,6 +392,16 @@ def handle_actions(message: str):
                 ),
             }
 
+    weekly_triggers = (
+        "hva bør jeg gjøre denne uka",
+        "hva bør jeg gjøre denne uken",
+        "ukens prioriteringer",
+        "ukens brief",
+    )
+    if any(trigger in lowered for trigger in weekly_triggers):
+        brief = build_weekly_brief()
+        return {"handled": True, "response": brief["summary_text"]}
+
     if lowered == "vis dashboard":
         dashboard = build_dashboard_summary()
         metrics = dashboard["metrics"]
@@ -434,7 +455,7 @@ def ask_agent(
     if action_result["handled"]:
         return action_result["response"], []
 
-    log_request_locally(message)
+    log_request(message)
 
     memory = get_recent_memory_text()
     system_prompt = load_system_prompt()
