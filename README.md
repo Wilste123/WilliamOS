@@ -71,6 +71,29 @@ uvicorn app.api.main:app --reload
 7. Første HouseOS-modul
 8. self-evolve dashboard
 
+## Arkitektur
+
+WilliamOS er strukturert i fire lag for å gjøre det enkelt å migrere bort fra Streamlit til en mer tilpasset webapp senere.
+
+```
+frontend/           ← UI-lag (Streamlit-spesifikt)
+  streamlit_app.py  ← tynn entrypoint: konfig + navigasjon + dispatch
+  ui/               ← én render_<side>() per side
+  components/       ← gjenbrukbare Streamlit-hjelpere
+
+app/services/       ← service-lag (ingen Streamlit-imports)
+app/agents/         ← agent-lag (ingen Streamlit-imports)
+app/database/       ← infrastruktur-lag (Supabase, OpenAI)
+app/models/         ← rene datamodeller
+app/api/            ← FastAPI-entrypoint (parallelt med UI-laget)
+```
+
+**Importretningsregel:** `frontend/ → app/services/ → app/database/`.
+Importer går bare nedover — aldri oppover.
+
+Se [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for full dokumentasjon,
+inkludert hvordan du legger til nye funksjoner uten å koble deg til Streamlit.
+
 ## Viktig regel
 
 Dette skal ikke bli komplisert for tidlig. Første versjon skal bare være nyttig nok til at den brukes hver dag.
