@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.storage_service import create_record, list_records
 
@@ -12,7 +12,7 @@ def log_request_locally(request_text: str) -> None:
         create_record("requests_log", {"request_text": request_text.strip()})
         return
     except Exception:
-        line = f"{datetime.utcnow().isoformat()} | {request_text.strip()}\n"
+        line = f"{datetime.now(timezone.utc).isoformat()} | {request_text.strip()}\n"
         with LOG_PATH.open("a", encoding="utf-8") as f:
             f.write(line)
 
