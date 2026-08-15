@@ -162,7 +162,7 @@ class TestBuildDashboardSummary:
         create_asset({"name": "Hytte", "status": "active"})
         create_project({"name": "Renovering", "status": "active"})
         create_task({"title": "Bestill materialer", "priority": 3, "status": "open"})
-        create_task({"title": "Ring forsikring", "priority": 2, "status": "open", "completed": True})
+        create_task({"title": "Ring forsikring", "priority": 2, "status": "completed", "completed": True})
         create_decision({"title": "Kjøp eller leie?", "status": "open"})
         return store
 
@@ -186,7 +186,9 @@ class TestBuildDashboardSummary:
         create_task({"title": "High priority", "priority": 3, "status": "open"})
         dash = build_dashboard_summary()
         priorities = dash["priorities"]
-        assert priorities[0]["priority"] >= priorities[-1]["priority"]
+        assert len(priorities) >= 2
+        assert priorities[0]["priority"] == 3
+        assert priorities[1]["priority"] == 1
 
     def test_dashboard_keys_present(self, monkeypatch):
         _patch_supabase(monkeypatch)
