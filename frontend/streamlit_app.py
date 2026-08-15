@@ -2,8 +2,9 @@
 
 This file is intentionally thin.  Its only responsibilities are:
 1. Configure the Streamlit page.
-2. Render the sidebar navigation.
-3. Dispatch to the correct page-render function from ``frontend.ui``.
+2. Enforce authentication via the auth gate.
+3. Render the sidebar navigation.
+4. Dispatch to the correct page-render function from ``frontend.ui``.
 
 All business logic lives in ``app/services`` and ``app/agents``.
 All Streamlit rendering per page lives in ``frontend/ui/<page>.py``.
@@ -20,6 +21,7 @@ sys.path.append(str(ROOT))
 import streamlit as st
 
 from frontend.ui.assets import render_assets
+from frontend.ui.auth import render_auth_gate, render_auth_sidebar, render_profile_page
 from frontend.ui.chat import render_chat
 from frontend.ui.dashboard import render_dashboard
 from frontend.ui.decisions import render_decisions
@@ -34,13 +36,18 @@ from frontend.ui.timeline import render_timeline
 
 st.set_page_config(page_title="WilliamOS", page_icon="🧠", layout="wide")
 
-st.title("WilliamOS")
-st.caption("Mini-Jarvis prototype for HouseOS, LifeOS og self-evolve")
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# ── Auth gate ────────────────────────────────────────────────────────────────
+# If the user is not logged in, show only the login / registration UI.
+if not render_auth_gate():
+    st.stop()
+
+# ── Main application (authenticated) ─────────────────────────────────────────
 with st.sidebar:
+    render_auth_sidebar()
+    st.divider()
     st.header("Navigasjon")
     page = st.radio(
         "Velg",
@@ -57,6 +64,7 @@ with st.sidebar:
             "Timeline",
             "Minne",
             "self-evolve",
+            "Min profil",
         ],
     )
     st.divider()
@@ -75,6 +83,7 @@ _PAGE_RENDERERS = {
     "Timeline": render_timeline,
     "Minne": render_memory,
     "self-evolve": render_self_evolve,
+    "Min profil": render_profile_page,
 }
 
 renderer = _PAGE_RENDERERS.get(page)

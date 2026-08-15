@@ -18,10 +18,17 @@ def _require_supabase(operation: str, collection: str):
     return sb
 
 
-def list_records(collection: str) -> list[dict]:
-    """Return all records for *collection* from Supabase."""
+def list_records(collection: str, user_id: str | None = None) -> list[dict]:
+    """Return all records for *collection* from Supabase.
+
+    If *user_id* is provided, only records whose ``user_id`` column matches
+    that value are returned (data isolation per authenticated user).
+    """
     sb = _require_supabase("list_records", collection)
-    response = sb.table(collection).select("*").order("created_at", desc=True).execute()
+    query = sb.table(collection).select("*").order("created_at", desc=True)
+    if user_id is not None:
+        query = query.eq("user_id", user_id)
+    response = query.execute()
     return response.data or []
 
 
