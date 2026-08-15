@@ -115,6 +115,52 @@ def update_decision(decision_id: str, updates: dict) -> dict | None:
     return decision
 
 
+def complete_task(task_id: str) -> dict | None:
+    """Mark a task as completed.
+
+    Encapsulates the business decision of which fields to set when a task is
+    completed so that the UI only needs to pass the task id.
+    """
+    return update_task(task_id, {"completed": True, "status": "completed"})
+
+
+def finalize_decision(decision_id: str) -> dict | None:
+    """Mark a decision as decided.
+
+    Encapsulates the business decision of which status value to use so that
+    the UI does not need to know the internal status string.
+    """
+    return update_decision(decision_id, {"status": "decided"})
+
+
+def save_document(
+    filename: str,
+    file_bytes: bytes,
+    *,
+    asset_id: str | None = None,
+    project_id: str | None = None,
+    source_module: str = "documents",
+) -> dict:
+    """Save uploaded file bytes and register the document record.
+
+    Combines ``document_service.save_uploaded_file`` with
+    ``create_document`` so the UI only supplies raw upload data and
+    relation ids; all other metadata decisions (``source_module`` etc.)
+    are resolved here in the service layer.
+    """
+    from app.services.document_service import save_uploaded_file  # local import avoids circular dep
+
+    saved = save_uploaded_file(filename, file_bytes)
+    return create_document(
+        {
+            **saved,
+            "asset_id": asset_id,
+            "project_id": project_id,
+            "source_module": source_module,
+        }
+    )
+
+
 def create_event(payload: dict) -> dict:
     return create_record("events", payload)
 

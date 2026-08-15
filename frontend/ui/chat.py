@@ -41,15 +41,10 @@ def render_chat() -> None:
 
         with st.chat_message("assistant"):
             with st.spinner("WilliamOS tenker..."):
-                prior_history = [
-                    {"role": m["role"], "content": m.get("content") or ""}
-                    for m in st.session_state.messages[:-1]
-                    if m.get("role") in ("user", "assistant")
-                ]
                 answer, sources = ask_agent(
                     prompt,
                     use_documents=use_documents,
-                    history=prior_history,
+                    history=st.session_state.messages[:-1],
                 )
             st.write(answer)
             if sources:

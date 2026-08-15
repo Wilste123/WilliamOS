@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from app.services.action_engine import create_decision, update_decision
+from app.services.action_engine import create_decision, finalize_decision
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options
 
@@ -52,5 +52,5 @@ def render_decisions() -> None:
             if decision.get("status") != "decided" and st.button(
                 "Marker som besluttet", key=f"decide_{decision['id']}"
             ):
-                update_decision(decision["id"], {"status": "decided"})
+                finalize_decision(decision["id"])
                 st.rerun()

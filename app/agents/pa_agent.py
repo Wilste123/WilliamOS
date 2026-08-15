@@ -402,6 +402,20 @@ def handle_actions(message: str):
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
+def _normalize_history(raw: list[dict]) -> list[dict]:
+    """Return a clean list of ``{"role", "content"}`` dicts from *raw*.
+
+    The UI may store extra keys (e.g. ``sources``) alongside role/content.
+    Only ``user`` and ``assistant`` entries are kept; system entries and any
+    unknown keys are dropped so the LLM context stays well-formed.
+    """
+    return [
+        {"role": entry["role"], "content": entry.get("content") or ""}
+        for entry in raw
+        if entry.get("role") in ("user", "assistant")
+    ]
+
+
 def ask_agent(
     message: str,
     *,
@@ -410,11 +424,11 @@ def ask_agent(
 ) -> tuple[str, list[dict]]:
     """Return (answer, sources).
 
-    ``history`` is an optional list of previous ``{"role": ..., "content": ...}``
-    messages (user + assistant only) from the current conversation session.
-    Including history lets the model remember context across turns so it can
-    execute actions like "lagre eiendelen" after the user has already described
-    the asset in a previous message.
+    ``history`` is an optional list of previous conversation messages from
+    the current session.  Entries may contain extra UI-layer keys (e.g.
+    ``sources``); this function normalises them internally so the caller
+    does not need to pre-filter.  Only ``user`` and ``assistant`` roles are
+    forwarded to the model.
     """
     action_result = handle_actions(message)
     if action_result["handled"]:
@@ -438,9 +452,7 @@ def ask_agent(
 
     # Inject prior conversation turns so the model has full context
     if history:
-        for entry in history:
-            if entry.get("role") in ("user", "assistant"):
-                messages.append({"role": entry["role"], "content": entry.get("content") or ""})
+        messages.extend(_normalize_history(history))
 
     messages.append({"role": "user", "content": message})
 
