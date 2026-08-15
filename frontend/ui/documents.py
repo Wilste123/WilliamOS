@@ -2,8 +2,7 @@
 
 import streamlit as st
 
-from app.services.action_engine import create_document
-from app.services.document_service import save_uploaded_file
+from app.services.action_engine import save_document
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options, render_collection
 
@@ -28,17 +27,14 @@ def render_documents() -> None:
 
     if uploaded is not None:
         if st.button("Lagre dokument"):
-            saved = save_uploaded_file(uploaded.name, uploaded.getvalue())
-            create_document(
-                {
-                    **saved,
-                    "asset_id": asset_options[asset_name],
-                    "project_id": project_options[project_name],
-                    "source_module": "documents",
-                }
+            doc = save_document(
+                uploaded.name,
+                uploaded.getvalue(),
+                asset_id=asset_options[asset_name],
+                project_id=project_options[project_name],
             )
             st.success("Dokument lagret lokalt")
-            st.json(saved)
+            st.json(doc)
 
     st.markdown("### Dokumenter")
     render_collection(documents, ["filename", "storage_path", "created_at"])

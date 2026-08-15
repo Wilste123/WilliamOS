@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from app.services.action_engine import create_task, update_task
+from app.services.action_engine import complete_task, create_task
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options
 
@@ -51,5 +51,5 @@ def render_tasks() -> None:
             if not task.get("completed") and st.button(
                 "Marker som fullført", key=f"complete_{task['id']}"
             ):
-                update_task(task["id"], {"completed": True, "status": "completed"})
+                complete_task(task["id"])
                 st.rerun()
