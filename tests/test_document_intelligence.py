@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ def _make_store_with_doc(text_content: str, filename: str = "report.txt", source
             {
                 "id": "doc-001",
                 "filename": filename,
-                "storage_path": f"uploads/{filename}",
+                "storage_path": f"documents/{filename}",
                 "text_content": text_content,
                 "source_module": source_module,
                 "asset_id": None,
@@ -28,6 +29,97 @@ def _make_store_with_doc(text_content: str, filename: str = "report.txt", source
             }
         ]
     }
+
+
+def _make_fake_supabase(records_by_collection: dict | None = None):
+    """Build a minimal in-memory Supabase stub that supports CRUD + Storage."""
+    store = records_by_collection if records_by_collection is not None else {}
+    bucket_store: dict[str, dict[str, bytes]] = {}
+
+    class _Query:
+        def __init__(self, collection):
+            self._collection = collection
+            self._filters = {}
+            self._op = None
+            self._payload = None
+            self._order_desc = False
+
+        def select(self, _fields="*"):
+            self._op = "select"
+            return self
+
+        def insert(self, payload):
+            self._op = "insert"
+            self._payload = payload
+            return self
+
+        def eq(self, field, value):
+            self._filters[field] = value
+            return self
+
+        def order(self, _col, desc=False):
+            self._order_desc = desc
+            return self
+
+        def execute(self):
+            rows = store.setdefault(self._collection, [])
+            if self._op == "select":
+                result = [r for r in rows if all(r.get(k) == v for k, v in self._filters.items())]
+                if self._order_desc:
+                    result = sorted(result, key=lambda r: r.get("created_at", ""), reverse=True)
+                return type("R", (), {"data": result})()
+            if self._op == "insert":
+                rows.append(self._payload)
+                return type("R", (), {"data": [self._payload]})()
+            return type("R", (), {"data": []})()
+
+    class _Bucket:
+        def __init__(self, name):
+            self._name = name
+
+        def upload(self, *, path, file, file_options=None):
+            bucket_store.setdefault(self._name, {})[path] = file
+            return {"path": path, "file_options": file_options or {}}
+
+        def download(self, path):
+            return bucket_store[self._name][path]
+
+        def list(self, path=""):
+            return [
+                {"name": object_path.rsplit("/", 1)[-1], "path": object_path}
+                for object_path in sorted(bucket_store.get(self._name, {}))
+                if not path or object_path.startswith(path)
+            ]
+
+        def remove(self, paths):
+            bucket = bucket_store.setdefault(self._name, {})
+            for object_path in paths:
+                bucket.pop(object_path, None)
+            return {"paths": paths}
+
+    class _Storage:
+        def from_(self, bucket):
+            return _Bucket(bucket)
+
+    class _FakeClient:
+        def __init__(self):
+            self.storage = _Storage()
+
+        def table(self, name):
+            return _Query(name)
+
+    client = _FakeClient()
+    client.bucket_store = bucket_store
+    return client
+
+
+def _patch_supabase(monkeypatch, fake_client=None):
+    client = fake_client if fake_client is not None else _make_fake_supabase()
+    from app.services import document_storage, storage_service
+
+    monkeypatch.setattr(document_storage, "get_supabase", lambda: client)
+    monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    return client
 
 
 # ---------------------------------------------------------------------------
@@ -71,19 +163,72 @@ class TestExtractTextContent:
 # ---------------------------------------------------------------------------
 
 class TestSaveUploadedFile:
-    def test_returns_text_content_for_text_file(self, tmp_path, monkeypatch):
-        from app.services import document_service
-        monkeypatch.setattr(document_service, "UPLOAD_DIR", tmp_path)
-        result = document_service.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
+    def test_returns_text_content_for_text_file(self, monkeypatch):
+        from app.services import document_storage
+
+        fake_client = _patch_supabase(monkeypatch)
+        monkeypatch.delenv("DOCUMENTS_BUCKET", raising=False)
+
+        result = document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
         assert result["text_content"] == "Budget: 100 NOK"
         assert result["filename"] == "hello.txt"
-        assert "storage_path" in result
+        assert result["storage_path"].startswith("documents/")
+        assert fake_client.bucket_store["documents"][result["storage_path"]] == b"Budget: 100 NOK"
 
-    def test_returns_none_text_for_binary(self, tmp_path, monkeypatch):
-        from app.services import document_service
-        monkeypatch.setattr(document_service, "UPLOAD_DIR", tmp_path)
-        result = document_service.save_uploaded_file("photo.jpg", bytes(range(256)))
+    def test_returns_none_text_for_binary(self, monkeypatch):
+        from app.services import document_storage
+
+        _patch_supabase(monkeypatch)
+        result = document_storage.save_uploaded_file("photo.jpg", bytes(range(256)))
         assert result["text_content"] is None
+
+    def test_read_list_and_delete_use_supabase_storage(self, monkeypatch):
+        from app.services import document_storage
+
+        fake_client = _patch_supabase(monkeypatch)
+        saved = document_storage.save_uploaded_file("notes.txt", b"Stored in bucket", source_module="projects")
+
+        assert document_storage.read_document_text(saved["storage_path"], saved["filename"]) == "Stored in bucket"
+        assert document_storage.list_document_objects("projects")[0]["path"] == saved["storage_path"]
+
+        document_storage.delete_document(saved["storage_path"])
+        assert fake_client.bucket_store["documents"] == {}
+
+    def test_missing_supabase_config_raises(self, monkeypatch):
+        from app.services import document_storage
+
+        monkeypatch.setattr(document_storage, "get_supabase", lambda: None)
+
+        with pytest.raises(RuntimeError, match="Supabase is not configured"):
+            document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
+
+    def test_invalid_bucket_config_raises(self, monkeypatch):
+        from app.services import document_storage
+
+        _patch_supabase(monkeypatch)
+        monkeypatch.setenv("DOCUMENTS_BUCKET", "   ")
+
+        with pytest.raises(RuntimeError, match="DOCUMENTS_BUCKET is misconfigured"):
+            document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
+
+    def test_supabase_storage_errors_propagate(self, monkeypatch):
+        from app.services import document_storage
+
+        class _BrokenBucket:
+            def upload(self, **_kwargs):
+                raise RuntimeError("storage unavailable")
+
+        class _BrokenStorage:
+            def from_(self, _bucket):
+                return _BrokenBucket()
+
+        class _BrokenClient:
+            storage = _BrokenStorage()
+
+        monkeypatch.setattr(document_storage, "get_supabase", lambda: _BrokenClient())
+
+        with pytest.raises(RuntimeError, match="storage unavailable"):
+            document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
 
 
 # ---------------------------------------------------------------------------
@@ -185,12 +330,7 @@ class TestAskAgentWithDocuments:
 
     def test_action_commands_still_work(self, monkeypatch):
         from app.agents.pa_agent import ask_agent
-        from app.services import storage_service
-
-        data_dir = Path("/tmp/test_williamos_actions")
-        data_file = data_dir / "local_store.json"
-        monkeypatch.setattr(storage_service, "DATA_DIR", data_dir)
-        monkeypatch.setattr(storage_service, "DATA_FILE", data_file)
+        _patch_supabase(monkeypatch)
 
         answer, sources = ask_agent("lag oppgave Test task fra pytest", use_documents=True)
         assert "✅" in answer
@@ -214,15 +354,10 @@ class TestAskAgentWithDocuments:
 # ---------------------------------------------------------------------------
 
 class TestDocumentUploadAPI:
-    def test_upload_stores_source_module(self, tmp_path, monkeypatch):
+    def test_upload_stores_source_module(self, monkeypatch):
         from fastapi.testclient import TestClient
         from app.api.main import app
-        from app.services import storage_service, document_service
-
-        monkeypatch.setattr(storage_service, "DATA_DIR", tmp_path / ".williamos")
-        monkeypatch.setattr(storage_service, "DATA_FILE", tmp_path / ".williamos" / "local_store.json")
-        monkeypatch.setattr(document_service, "UPLOAD_DIR", tmp_path / "uploads")
-        (tmp_path / "uploads").mkdir()
+        fake_client = _patch_supabase(monkeypatch)
 
         client = TestClient(app)
         response = client.post(
@@ -234,16 +369,15 @@ class TestDocumentUploadAPI:
         body = response.json()
         assert body["source_module"] == "projects"
         assert body["text_content"] == "Project meeting notes content"
+        assert body["storage_path"].startswith("projects/")
+        assert fake_client.bucket_store["documents"][body["storage_path"]] == b"Project meeting notes content"
 
-    def test_search_endpoint(self, tmp_path, monkeypatch):
+    def test_search_endpoint(self, monkeypatch):
         from fastapi.testclient import TestClient
         from app.api.main import app
-        from app.services import storage_service, document_service, retrieval_service
+        from app.services import retrieval_service
 
-        monkeypatch.setattr(storage_service, "DATA_DIR", tmp_path / ".williamos")
-        monkeypatch.setattr(storage_service, "DATA_FILE", tmp_path / ".williamos" / "local_store.json")
-        monkeypatch.setattr(document_service, "UPLOAD_DIR", tmp_path / "uploads")
-        (tmp_path / "uploads").mkdir()
+        _patch_supabase(monkeypatch)
 
         doc_store = _make_store_with_doc("Annual budget summary for the property portfolio.")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
@@ -255,14 +389,13 @@ class TestDocumentUploadAPI:
         assert "results" in body
         assert len(body["results"]) >= 1
 
-    def test_chat_endpoint_returns_sources(self, tmp_path, monkeypatch):
+    def test_chat_endpoint_returns_sources(self, monkeypatch):
         from fastapi.testclient import TestClient
         from app.api.main import app
-        from app.services import storage_service, retrieval_service
+        from app.services import retrieval_service
         import app.services.openai_service as oai
 
-        monkeypatch.setattr(storage_service, "DATA_DIR", tmp_path / ".williamos")
-        monkeypatch.setattr(storage_service, "DATA_FILE", tmp_path / ".williamos" / "local_store.json")
+        _patch_supabase(monkeypatch)
         monkeypatch.setattr(oai, "client", None)
 
         doc_store = _make_store_with_doc("Invoice for boat service: 15 000 NOK")
@@ -283,7 +416,7 @@ def _make_store_with_doc(text_content: str, filename: str = "report.txt", source
             {
                 "id": "doc-001",
                 "filename": filename,
-                "storage_path": f"uploads/{filename}",
+                "storage_path": f"documents/{filename}",
                 "text_content": text_content,
                 "source_module": source_module,
                 "asset_id": None,
