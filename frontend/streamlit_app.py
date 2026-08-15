@@ -21,7 +21,7 @@ from app.services.action_engine import (
     update_task,
 )
 from app.services.memory_service import save_memory, get_recent_memory_text
-from app.services.document_service import save_uploaded_file
+from app.services.document_storage import save_uploaded_file
 from app.services.storage_service import list_records
 
 st.set_page_config(page_title="WilliamOS", page_icon="🧠", layout="wide")
@@ -308,7 +308,12 @@ elif page == "Dokumenter":
     project_name = st.selectbox("Knytt til prosjekt", list(project_options.keys()), key="document_project")
     if uploaded is not None:
         if st.button("Lagre dokument"):
-            saved = save_uploaded_file(uploaded.name, uploaded.getvalue())
+            saved = save_uploaded_file(
+                uploaded.name,
+                uploaded.getvalue(),
+                source_module="documents",
+                content_type=uploaded.type,
+            )
             create_document(
                 {
                     **saved,
@@ -317,7 +322,7 @@ elif page == "Dokumenter":
                     "source_module": "documents",
                 }
             )
-            st.success("Dokument lagret lokalt")
+            st.success("Dokument lagret i Supabase Storage")
             st.json(saved)
     st.markdown("### Dokumenter")
     _show_collection(documents, ["filename", "storage_path", "created_at"])

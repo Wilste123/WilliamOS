@@ -30,9 +30,20 @@ Hvis du ikke bruker det, forenkler vi.
 ## Kom i gang
 
 1. Kopier `.env.example` til `.env`
-2. Legg inn API-nøkler hvis du vil bruke OpenAI og Supabase
+2. Legg inn API-nøkler for OpenAI og Supabase
 3. Installer avhengigheter
 4. Kjør Streamlit eller FastAPI
+
+Påkrevde miljøvariabler:
+
+```bash
+OPENAI_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_KEY=...
+DOCUMENTS_BUCKET=documents
+```
+
+`DOCUMENTS_BUCKET` er valgfri og bruker `documents` som standard hvis den ikke er satt. Hvis Supabase ikke er konfigurert riktig, feiler appen tydelig i stedet for å bruke lokal fallback.
 
 ```bash
 pip install -r requirements.txt
@@ -58,7 +69,17 @@ uvicorn app.api.main:app --reload
 - Asset-first visning med eiendeler, prosjekter, oppgaver og beslutninger
 - Timeline/historikk via hendelser som bygges automatisk når data opprettes
 - Supabase som eneste lagringslag — operasjoner feiler tydelig hvis Supabase ikke er konfigurert
+- Dokumenter lagres i Supabase Storage-bucketen konfigurert via `DOCUMENTS_BUCKET` (standard: `documents`)
 - Chat som kan utføre enkle handlinger direkte, som å opprette oppgave, eiendel, prosjekt eller beslutning
+
+## Supabase Storage-oppsett for dokumenter
+
+Opprett en bucket i Supabase Storage med navnet du bruker i `DOCUMENTS_BUCKET` (standard: `documents`).
+
+- Servernøkkelen eller nøkkelen appen bruker må ha tilgang til å laste opp, lese, liste og slette objekter i bucketen.
+- Hvis du bruker RLS/policies for Storage, legg til policies som tillater disse operasjonene for rollen knyttet til `SUPABASE_KEY`.
+
+Migrasjonsnotat: dokumentenes `storage_path` peker nå til objektstien i Supabase Storage, ikke til en lokal filsti på disk.
 
 ## Foreslått rekkefølge
 

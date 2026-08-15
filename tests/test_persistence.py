@@ -193,7 +193,7 @@ class TestDocumentPersistence:
         from app.services.action_engine import create_document
         from app.services.storage_service import list_records
 
-        doc = create_document({"filename": "report.pdf", "storage_path": "/uploads/report.pdf"})
+        doc = create_document({"filename": "report.pdf", "storage_path": "documents/report.pdf"})
         assert doc.get("id") is not None
         records = list_records("documents")
         assert any(r["id"] == doc["id"] for r in records)
@@ -342,4 +342,3 @@ class TestSupabaseRequired:
 
         with pytest.raises(RuntimeError, match="timeout"):
             storage_service.list_records("assets")
-

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form, Query, UploadFile, File
 
 from app.services.action_engine import create_document
-from app.services.document_service import save_uploaded_file
+from app.services.document_storage import save_uploaded_file
 from app.services.retrieval_service import search_documents
 from app.services.storage_service import list_records
 
@@ -21,13 +21,19 @@ async def upload_document(
     source_module: str | None = Form(None),
 ):
     content = await file.read()
-    saved = save_uploaded_file(file.filename, content)
+    selected_source_module = source_module or "documents"
+    saved = save_uploaded_file(
+        file.filename,
+        content,
+        source_module=selected_source_module,
+        content_type=file.content_type,
+    )
     document = create_document(
         {
             **saved,
             "asset_id": asset_id,
             "project_id": project_id,
-            "source_module": source_module or "documents",
+            "source_module": selected_source_module,
         }
     )
     return {"saved": True, **document}
