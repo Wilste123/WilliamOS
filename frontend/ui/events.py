@@ -5,6 +5,7 @@ import streamlit as st
 from app.services.action_engine import create_event
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options, render_collection
+from frontend.components.visibility_helpers import visibility_selectbox
 
 
 def render_events() -> None:
@@ -35,6 +36,7 @@ def render_events() -> None:
         decision_name = st.selectbox(
             "Knytt til beslutning", list(decision_options.keys()), key="event_decision"
         )
+        visibility = visibility_selectbox(key="event_visibility")
         submitted = st.form_submit_button("Logg hendelse")
 
     if submitted and title.strip():
@@ -47,6 +49,7 @@ def render_events() -> None:
                 "asset_id": asset_options[asset_name],
                 "project_id": project_options[project_name],
                 "decision_id": decision_options[decision_name],
+                "visibility": visibility,
             }
         )
         st.rerun()

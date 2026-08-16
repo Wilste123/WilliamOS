@@ -82,10 +82,10 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
 
 
 def _patch_supabase(monkeypatch, fake_client=None):
-    """Patch get_supabase to return *fake_client* (or a fresh stub if not given)."""
+    """Patch get_client to return *fake_client* (or a fresh stub if not given)."""
     from app.services import storage_service
     client = fake_client if fake_client is not None else _make_fake_supabase()
-    monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    monkeypatch.setattr(storage_service, "get_client", lambda: client)
     return client
 
 
@@ -281,28 +281,28 @@ class TestChatActionPersistence:
 class TestSupabaseRequired:
     def test_list_records_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: None)
+        monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
             storage_service.list_records("assets")
 
     def test_get_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: None)
+        monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
             storage_service.get_record("assets", "some-id")
 
     def test_create_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: None)
+        monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
             storage_service.create_record("projects", {"name": "Test"})
 
     def test_update_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: None)
+        monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
             storage_service.update_record("projects", "some-id", {"name": "X"})
@@ -318,7 +318,7 @@ class TestSupabaseRequired:
             def table(self, _name):
                 return _BrokenTable()
 
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: _BrokenClient())
+        monkeypatch.setattr(storage_service, "get_client", lambda: _BrokenClient())
 
         with pytest.raises(RuntimeError, match="DB connection refused"):
             storage_service.create_record("projects", {"name": "Will fail"})
@@ -338,7 +338,7 @@ class TestSupabaseRequired:
             def table(self, _name):
                 return _BrokenQuery()
 
-        monkeypatch.setattr(storage_service, "get_supabase", lambda: _BrokenClient())
+        monkeypatch.setattr(storage_service, "get_client", lambda: _BrokenClient())
 
         with pytest.raises(RuntimeError, match="timeout"):
             storage_service.list_records("assets")

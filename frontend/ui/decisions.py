@@ -5,6 +5,7 @@ import streamlit as st
 from app.services.action_engine import create_decision, finalize_decision
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options
+from frontend.components.visibility_helpers import visibility_selectbox
 
 
 def render_decisions() -> None:
@@ -28,6 +29,7 @@ def render_decisions() -> None:
         project_name = st.selectbox(
             "Knytt til prosjekt", list(project_options.keys()), key="decision_project"
         )
+        visibility = visibility_selectbox(key="decision_visibility")
         submitted = st.form_submit_button("Opprett beslutning")
 
     if submitted and title.strip():
@@ -39,6 +41,7 @@ def render_decisions() -> None:
                 "next_action": next_action or None,
                 "asset_id": asset_options[asset_name],
                 "project_id": project_options[project_name],
+                "visibility": visibility,
             }
         )
         st.rerun()

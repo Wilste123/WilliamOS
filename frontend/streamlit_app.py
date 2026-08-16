@@ -19,7 +19,9 @@ sys.path.append(str(ROOT))
 
 import streamlit as st
 
+from app.services.auth_service import is_authenticated, restore_session_from_state, sign_out
 from frontend.ui.assets import render_assets
+from frontend.ui.auth import render_auth
 from frontend.ui.chat import render_chat
 from frontend.ui.dashboard import render_dashboard
 from frontend.ui.decisions import render_decisions
@@ -34,6 +36,13 @@ from frontend.ui.timeline import render_timeline
 
 st.set_page_config(page_title="WilliamOS", page_icon="🧠", layout="wide")
 
+if not is_authenticated():
+    st.title("WilliamOS")
+    render_auth()
+    st.stop()
+
+context = restore_session_from_state()
+
 st.title("WilliamOS")
 st.caption("Mini-Jarvis prototype for HouseOS, LifeOS og self-evolve")
 
@@ -41,6 +50,13 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 with st.sidebar:
+    if context:
+        st.write(f"**{context.display_name or context.email}**")
+        st.caption(f"Husholdning: {context.household_id[:8]}…")
+    if st.button("Logg ut"):
+        sign_out()
+        st.rerun()
+
     st.header("Navigasjon")
     page = st.radio(
         "Velg",

@@ -89,7 +89,7 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
 def _patch_supabase(monkeypatch, fake_client=None):
     from app.services import storage_service
     client = fake_client if fake_client is not None else _make_fake_supabase()
-    monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    monkeypatch.setattr(storage_service, "get_client", lambda: client)
     return client
 
 

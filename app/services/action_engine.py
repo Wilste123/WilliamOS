@@ -11,6 +11,7 @@ def create_asset(payload: dict) -> dict:
         event_type="asset_created",
         notes=asset.get("description"),
         asset_id=asset["id"],
+        visibility=asset.get("visibility"),
     )
     return asset
 
@@ -22,6 +23,7 @@ def update_asset(asset_id: str, updates: dict) -> dict | None:
             title=f"Eiendel oppdatert: {asset['name']}",
             event_type="asset_updated",
             asset_id=asset["id"],
+            visibility=asset.get("visibility"),
         )
     return asset
 
@@ -34,6 +36,7 @@ def create_task(payload: dict) -> dict:
         notes=task.get("description"),
         asset_id=task.get("asset_id"),
         project_id=task.get("project_id"),
+        visibility=task.get("visibility"),
     )
     return task
 
@@ -47,6 +50,7 @@ def update_task(task_id: str, updates: dict) -> dict | None:
             notes=f"Status: {task.get('status')}, fullført: {task.get('completed')}",
             asset_id=task.get("asset_id"),
             project_id=task.get("project_id"),
+            visibility=task.get("visibility"),
         )
     return task
 
@@ -59,6 +63,7 @@ def create_project(payload: dict) -> dict:
         notes=project.get("next_action"),
         asset_id=project.get("asset_id"),
         project_id=project["id"],
+        visibility=project.get("visibility"),
     )
     return project
 
@@ -70,6 +75,7 @@ def update_project(project_id: str, updates: dict) -> dict | None:
             title=f"Prosjekt oppdatert: {project['name']}",
             event_type="project_updated",
             project_id=project["id"],
+            visibility=project.get("visibility"),
         )
     return project
 
@@ -81,6 +87,7 @@ def create_document(payload: dict) -> dict:
         event_type="document_created",
         asset_id=document.get("asset_id"),
         project_id=document.get("project_id"),
+        visibility=document.get("visibility"),
     )
     return document
 
@@ -96,6 +103,7 @@ def create_decision(payload: dict) -> dict:
         asset_id=decision.get("asset_id"),
         project_id=decision.get("project_id"),
         decision_id=decision["id"],
+        visibility=decision.get("visibility"),
     )
     return decision
 
@@ -111,6 +119,7 @@ def update_decision(decision_id: str, updates: dict) -> dict | None:
             decision_id=decision["id"],
             asset_id=decision.get("asset_id"),
             project_id=decision.get("project_id"),
+            visibility=decision.get("visibility"),
         )
     return decision
 
@@ -140,6 +149,7 @@ def save_document(
     asset_id: str | None = None,
     project_id: str | None = None,
     source_module: str = "documents",
+    visibility: str = "household",
 ) -> dict:
     """Save uploaded file bytes and register the document record.
 
@@ -150,13 +160,14 @@ def save_document(
     """
     from app.services.document_service import save_uploaded_file  # local import avoids circular dep
 
-    saved = save_uploaded_file(filename, file_bytes)
+    saved = save_uploaded_file(filename, file_bytes, source_module=source_module, visibility=visibility)
     return create_document(
         {
             **saved,
             "asset_id": asset_id,
             "project_id": project_id,
             "source_module": source_module,
+            "visibility": visibility,
         }
     )
 
@@ -226,12 +237,14 @@ def capture_inbox_entry(text: str) -> dict:
             "text": text,
             "suggestions": suggestions,
             "status": "captured",
+            "visibility": "private",
         },
     )
     append_event(
         title=f"Innboksfangst: {text[:60]}",
         event_type="inbox_captured",
         notes=f"{len(suggestions)} forslag generert",
+        visibility="private",
     )
     return inbox_item
 
@@ -261,6 +274,7 @@ def apply_inbox_suggestion(inbox_id: str, suggestion_index: int) -> dict:
     if creator is None:
         raise ValueError(f"Ukjent objekttype: {object_type}")
 
+    fields = {**fields, "visibility": "household"}
     created = creator(fields)
     remaining = [s for i, s in enumerate(suggestions) if i != suggestion_index]
     status = "processed" if not remaining else "partial"

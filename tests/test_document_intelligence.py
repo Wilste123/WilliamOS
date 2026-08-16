@@ -113,12 +113,26 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
     return client
 
 
+def _set_test_context() -> None:
+    from app.services.auth_context import UserContext, set_current_context
+
+    set_current_context(
+        UserContext(
+            user_id="user-test",
+            email="test@example.com",
+            household_id="household-test",
+            access_token="",
+            refresh_token="",
+        )
+    )
+
+
 def _patch_supabase(monkeypatch, fake_client=None):
     client = fake_client if fake_client is not None else _make_fake_supabase()
     from app.services import document_storage, storage_service
 
-    monkeypatch.setattr(document_storage, "get_supabase", lambda: client)
-    monkeypatch.setattr(storage_service, "get_supabase", lambda: client)
+    monkeypatch.setattr(storage_service, "get_client", lambda: client)
+    monkeypatch.setattr(document_storage, "get_client", lambda: client)
     return client
 
 
@@ -167,12 +181,13 @@ class TestSaveUploadedFile:
         from app.services import document_storage
 
         fake_client = _patch_supabase(monkeypatch)
+        _set_test_context()
         monkeypatch.delenv("DOCUMENTS_BUCKET", raising=False)
 
         result = document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
         assert result["text_content"] == "Budget: 100 NOK"
         assert result["filename"] == "hello.txt"
-        assert result["storage_path"].startswith("documents/")
+        assert result["storage_path"].startswith("household/household-test/")
         assert fake_client.bucket_store["documents"][result["storage_path"]] == b"Budget: 100 NOK"
 
     def test_returns_none_text_for_binary(self, monkeypatch):
@@ -186,18 +201,20 @@ class TestSaveUploadedFile:
         from app.services import document_storage
 
         fake_client = _patch_supabase(monkeypatch)
+        _set_test_context()
         saved = document_storage.save_uploaded_file("notes.txt", b"Stored in bucket", source_module="projects")
 
         assert document_storage.read_document_text(saved["storage_path"], saved["filename"]) == "Stored in bucket"
-        assert document_storage.list_document_objects("projects")[0]["path"] == saved["storage_path"]
+        assert document_storage.list_document_objects("household/household-test/projects")[0]["path"] == saved["storage_path"]
 
         document_storage.delete_document(saved["storage_path"])
         assert fake_client.bucket_store["documents"] == {}
 
     def test_missing_supabase_config_raises(self, monkeypatch):
-        from app.services import document_storage
+        from app.services import document_storage, storage_service
 
-        monkeypatch.setattr(document_storage, "get_supabase", lambda: None)
+        monkeypatch.setattr(storage_service, "get_client", lambda: None)
+        monkeypatch.setattr(document_storage, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
             document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
@@ -212,7 +229,7 @@ class TestSaveUploadedFile:
             document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
 
     def test_supabase_storage_errors_propagate(self, monkeypatch):
-        from app.services import document_storage
+        from app.services import document_storage, storage_service
 
         class _BrokenBucket:
             def upload(self, **_kwargs):
@@ -225,7 +242,8 @@ class TestSaveUploadedFile:
         class _BrokenClient:
             storage = _BrokenStorage()
 
-        monkeypatch.setattr(document_storage, "get_supabase", lambda: _BrokenClient())
+        monkeypatch.setattr(storage_service, "get_client", lambda: _BrokenClient())
+        monkeypatch.setattr(document_storage, "get_client", lambda: _BrokenClient())
 
         with pytest.raises(RuntimeError, match="storage unavailable"):
             document_storage.save_uploaded_file("hello.txt", b"Budget: 100 NOK")
@@ -356,6 +374,7 @@ class TestDocumentUploadAPI:
         from fastapi.testclient import TestClient
         from app.api.main import app
         fake_client = _patch_supabase(monkeypatch)
+        _set_test_context()
 
         client = TestClient(app)
         response = client.post(
@@ -367,7 +386,7 @@ class TestDocumentUploadAPI:
         body = response.json()
         assert body["source_module"] == "projects"
         assert body["text_content"] == "Project meeting notes content"
-        assert body["storage_path"].startswith("projects/")
+        assert body["storage_path"].startswith("household/household-test/projects/")
         assert fake_client.bucket_store["documents"][body["storage_path"]] == b"Project meeting notes content"
 
     def test_search_endpoint(self, monkeypatch):

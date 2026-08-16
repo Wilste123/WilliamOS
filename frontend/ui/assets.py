@@ -5,6 +5,7 @@ import streamlit as st
 from app.services.action_engine import create_asset, get_asset_detail, update_asset
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import render_collection
+from frontend.components.visibility_helpers import visibility_selectbox
 
 
 def _render_asset_detail(asset_id: str) -> None:
@@ -61,6 +62,7 @@ def render_assets() -> None:
                 "Estimert verdi", min_value=0.0, value=0.0, step=1000.0
             )
             description = st.text_area("Beskrivelse")
+            visibility = visibility_selectbox(key="asset_visibility")
             submitted = st.form_submit_button("Opprett eiendel")
 
         if submitted and name.strip():
@@ -71,6 +73,7 @@ def render_assets() -> None:
                     "status": status,
                     "estimated_value": estimated_value or None,
                     "description": description or None,
+                    "visibility": visibility,
                 }
             )
             st.rerun()

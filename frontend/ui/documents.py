@@ -5,6 +5,7 @@ import streamlit as st
 from app.services.action_engine import save_document
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options, render_collection
+from frontend.components.visibility_helpers import visibility_selectbox
 
 
 def render_documents() -> None:
@@ -24,6 +25,7 @@ def render_documents() -> None:
     project_name = st.selectbox(
         "Knytt til prosjekt", list(project_options.keys()), key="document_project"
     )
+    visibility = visibility_selectbox(key="document_visibility")
 
     if uploaded is not None:
         if st.button("Lagre dokument"):
@@ -32,6 +34,7 @@ def render_documents() -> None:
                 uploaded.getvalue(),
                 asset_id=asset_options[asset_name],
                 project_id=project_options[project_name],
+                visibility=visibility,
             )
             st.success("Dokument lagret i Supabase")
             st.rerun()

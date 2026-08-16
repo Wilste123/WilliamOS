@@ -5,6 +5,7 @@ import streamlit as st
 from app.services.action_engine import complete_task, create_task
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options
+from frontend.components.visibility_helpers import visibility_badge, visibility_selectbox
 
 
 def render_tasks() -> None:
@@ -24,6 +25,7 @@ def render_tasks() -> None:
         priority = st.slider("Prioritet", 1, 3, 2)
         asset_name = st.selectbox("Knytt til eiendel", list(asset_options.keys()))
         project_name = st.selectbox("Knytt til prosjekt", list(project_options.keys()))
+        visibility = visibility_selectbox(key="task_visibility")
         submitted = st.form_submit_button("Opprett oppgave")
 
     if submitted and title.strip():
@@ -36,6 +38,7 @@ def render_tasks() -> None:
                 "asset_id": asset_options[asset_name],
                 "project_id": project_options[project_name],
                 "status": "open",
+                "visibility": visibility,
             }
         )
         st.rerun()
@@ -44,7 +47,8 @@ def render_tasks() -> None:
         with st.container(border=True):
             st.write(f"**{task['title']}**")
             st.caption(
-                f"Prioritet {task.get('priority', 2)} · Status: {task.get('status', 'open')}"
+                f"Prioritet {task.get('priority', 2)} · Status: {task.get('status', 'open')} · "
+                f"{visibility_badge(task)}"
             )
             if task.get("description"):
                 st.write(task["description"])

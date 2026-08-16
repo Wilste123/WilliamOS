@@ -17,7 +17,7 @@ def render_memory() -> None:
         submitted = st.form_submit_button("Lagre minne")
 
     if submitted and value:
-        save_memory(value=value, key=key or None, category=category or None)
+        save_memory(value=value, key=key or None, category=category or None, visibility="private")
         st.success("Lagret i Supabase")
         st.rerun()
 

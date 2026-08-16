@@ -3,7 +3,8 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
-from app.database.supabase import get_supabase
+from app.services.auth_context import get_current_context
+from app.services.storage_service import get_client
 
 MAX_TEXT_BYTES = 50_000
 TEXT_EXTENSIONS = {
@@ -33,14 +34,14 @@ def extract_text_content(filename: str, content: bytes) -> str | None:
 
 
 def _require_storage(operation: str):
-    supabase = get_supabase()
-    if supabase is None:
+    client = get_client()
+    if client is None:
         raise RuntimeError(
             f"Supabase is not configured. Cannot perform '{operation}' for documents. "
-            "Set SUPABASE_URL and SUPABASE_KEY environment variables."
+            "Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables."
         )
     bucket = get_documents_bucket()
-    return supabase.storage.from_(bucket)
+    return client.storage.from_(bucket)
 
 
 def get_documents_bucket() -> str:
@@ -56,10 +57,22 @@ def get_documents_bucket() -> str:
 
 
 def _sanitize_path_component(value: str | None) -> str:
-    cleaned = (value or DEFAULT_DOCUMENTS_BUCKET).strip().strip("/")
+    cleaned = (value or "documents").strip().strip("/")
     if not cleaned:
-        return DEFAULT_DOCUMENTS_BUCKET
+        return "documents"
     return "".join(char if char.isalnum() or char in {"-", "_", "/"} else "_" for char in cleaned)
+
+
+def _build_storage_prefix(*, visibility: str, source_module: str | None) -> str:
+    context = get_current_context()
+    module = _sanitize_path_component(source_module or "documents")
+    if visibility == "private":
+        if context is None:
+            return f"private/unknown/{module}"
+        return f"private/{context.user_id}/{module}"
+    if context is None:
+        return f"household/unknown/{module}"
+    return f"household/{context.household_id}/{module}"
 
 
 def upload_document(
@@ -68,10 +81,12 @@ def upload_document(
     *,
     source_module: str | None = None,
     content_type: str | None = None,
+    visibility: str = "household",
 ) -> dict:
     storage = _require_storage("upload_document")
     safe_name = Path(filename).name.replace("/", "_").replace("\\", "_") or "document"
-    storage_path = f"{_sanitize_path_component(source_module)}/{uuid4()}_{safe_name}"
+    prefix = _build_storage_prefix(visibility=visibility, source_module=source_module)
+    storage_path = f"{prefix}/{uuid4()}_{safe_name}"
     file_options = {
         "content-type": content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream",
         "upsert": "false",
@@ -107,10 +122,12 @@ def save_uploaded_file(
     *,
     source_module: str | None = None,
     content_type: str | None = None,
+    visibility: str = "household",
 ) -> dict:
     return upload_document(
         filename,
         content,
         source_module=source_module,
         content_type=content_type,
+        visibility=visibility,
     )

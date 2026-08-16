@@ -4,7 +4,8 @@ import streamlit as st
 
 from app.services.action_engine import create_project, update_project
 from app.services.storage_service import list_records
-from frontend.components.record_helpers import build_record_options, render_collection
+from frontend.components.record_helpers import build_record_options
+from frontend.components.visibility_helpers import visibility_selectbox, render_collection
 
 
 def render_projects() -> None:
@@ -24,6 +25,7 @@ def render_projects() -> None:
             asset_name = st.selectbox(
                 "Knytt til eiendel", list(asset_options.keys()), key="project_asset"
             )
+            visibility = visibility_selectbox(key="project_visibility")
             submitted = st.form_submit_button("Opprett prosjekt")
 
         if submitted and name.strip():
@@ -34,6 +36,7 @@ def render_projects() -> None:
                     "next_action": next_action or None,
                     "notes": notes or None,
                     "asset_id": asset_options[asset_name],
+                    "visibility": visibility,
                 }
             )
             st.rerun()
