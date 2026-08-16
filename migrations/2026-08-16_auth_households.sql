@@ -32,9 +32,13 @@ create table if not exists household_members (
 create table if not exists user_profiles (
     id                    uuid primary key references auth.users(id) on delete cascade,
     display_name          text,
+    assistant_name        text,
     default_household_id  uuid references households(id) on delete set null,
     created_at            timestamptz not null default now()
 );
+
+-- For databases created before assistant_name was added to the table definition
+alter table user_profiles add column if not exists assistant_name text;
 
 -- ─────────────────────────────────────────────────────────────
 -- Auth columns on existing tables

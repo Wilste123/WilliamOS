@@ -44,9 +44,10 @@ def _first_row(response, default=None):
 
 
 def _load_profile(client, user_id: str) -> dict:
+    """Load core profile fields needed for auth/household setup."""
     response = (
         client.table("user_profiles")
-        .select("display_name, assistant_name, default_household_id")
+        .select("display_name, default_household_id")
         .eq("id", user_id)
         .limit(1)
         .execute()
@@ -180,7 +181,6 @@ def sign_in(email: str, password: str) -> UserContext:
         auth_response.user,
         household_id,
         profile.get("display_name") or display_name,
-        profile.get("assistant_name"),
     )
 
 

@@ -5,6 +5,13 @@ from app.services.auth_context import get_current_context, set_current_context
 from app.services.storage_service import get_client
 
 DEFAULT_ASSISTANT_NAME = "WilliamOS"
+MIGRATION_HINT = "Kjør migrations/2026-08-16_assistant_name.sql i Supabase SQL Editor."
+
+
+def _is_missing_column_error(exc: BaseException) -> bool:
+    message = str(exc)
+    code = getattr(exc, "code", None)
+    return code == "42703" or "assistant_name" in message and "does not exist" in message
 
 
 def _normalize_assistant_name(name: str | None) -> str:
@@ -63,24 +70,31 @@ def update_assistant_name(name: str) -> str:
     if client is None:
         raise RuntimeError("Supabase er ikke konfigurert.")
 
-    response = (
-        client.table("user_profiles")
-        .select("id")
-        .eq("id", context.user_id)
-        .limit(1)
-        .execute()
-    )
-    if response_data(response, []):
-        client.table("user_profiles").update({"assistant_name": assistant_name}).eq("id", context.user_id).execute()
-    else:
-        client.table("user_profiles").insert(
-            {
-                "id": context.user_id,
-                "display_name": context.display_name,
-                "default_household_id": context.household_id,
-                "assistant_name": assistant_name,
-            }
-        ).execute()
+    try:
+        response = (
+            client.table("user_profiles")
+            .select("id")
+            .eq("id", context.user_id)
+            .limit(1)
+            .execute()
+        )
+        if response_data(response, []):
+            client.table("user_profiles").update({"assistant_name": assistant_name}).eq("id", context.user_id).execute()
+        else:
+            client.table("user_profiles").insert(
+                {
+                    "id": context.user_id,
+                    "display_name": context.display_name,
+                    "default_household_id": context.household_id,
+                    "assistant_name": assistant_name,
+                }
+            ).execute()
+    except Exception as exc:
+        if _is_missing_column_error(exc):
+            raise RuntimeError(
+                f"Assistentnavn er ikke aktivert i databasen ennå. {MIGRATION_HINT}"
+            ) from exc
+        raise
 
     updated = context.__class__(
         user_id=context.user_id,
