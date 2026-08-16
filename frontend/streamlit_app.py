@@ -20,6 +20,7 @@ sys.path.append(str(ROOT))
 import streamlit as st
 
 from app.services.auth_service import is_authenticated, restore_session_from_state, sign_out
+from app.services.profile_service import get_assistant_name
 from frontend.ui.assets import render_assets
 from frontend.ui.auth import render_auth
 from frontend.ui.chat import render_chat
@@ -31,6 +32,7 @@ from frontend.ui.inbox import render_inbox
 from frontend.ui.memory import render_memory
 from frontend.ui.projects import render_projects
 from frontend.ui.self_evolve import render_self_evolve
+from frontend.ui.settings import render_settings
 from frontend.ui.tasks import render_tasks
 from frontend.ui.timeline import render_timeline
 
@@ -42,9 +44,10 @@ if not is_authenticated():
     st.stop()
 
 context = restore_session_from_state()
+assistant_name = get_assistant_name()
 
 st.title("WilliamOS")
-st.caption("Mini-Jarvis prototype for HouseOS, LifeOS og self-evolve")
+st.caption(f"Din assistent: {assistant_name}")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -72,6 +75,7 @@ with st.sidebar:
             "Dokumenter",
             "Timeline",
             "Minne",
+            "Innstillinger",
             "self-evolve",
         ],
     )
@@ -90,6 +94,7 @@ _PAGE_RENDERERS = {
     "Dokumenter": render_documents,
     "Timeline": render_timeline,
     "Minne": render_memory,
+    "Innstillinger": render_settings,
     "self-evolve": render_self_evolve,
 }
 

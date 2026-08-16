@@ -3,6 +3,7 @@
 import streamlit as st
 
 from app.agents.pa_agent import ask_agent
+from app.services.profile_service import get_assistant_name
 
 
 def render_chat() -> None:
@@ -11,7 +12,8 @@ def render_chat() -> None:
     Conversation history is stored in ``st.session_state.messages`` so the
     context persists across reruns within the same browser session.
     """
-    st.subheader("PA-chat")
+    assistant_name = get_assistant_name()
+    st.subheader(f"Chat med {assistant_name}")
 
     use_documents = st.toggle(
         "Bruk opplastede dokumenter",
@@ -40,7 +42,7 @@ def render_chat() -> None:
             st.write(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("WilliamOS tenker..."):
+            with st.spinner(f"{assistant_name} tenker..."):
                 answer, sources = ask_agent(
                     prompt,
                     use_documents=use_documents,

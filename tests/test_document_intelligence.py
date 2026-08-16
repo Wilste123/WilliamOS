@@ -323,6 +323,7 @@ class TestAskAgentWithDocuments:
 
         monkeypatch.setattr(pa, "log_request", lambda request_text: None)
         monkeypatch.setattr(pa, "get_recent_memory_text", lambda limit=20: "")
+        monkeypatch.setattr(pa, "get_assistant_name", lambda: "WilliamOS")
         monkeypatch.setattr(oai, "client", None)
         documents = doc_store.get("documents", []) if doc_store else []
         monkeypatch.setattr(rs, "list_records", lambda _: documents)
@@ -409,11 +410,15 @@ class TestDocumentUploadAPI:
     def test_chat_endpoint_returns_sources(self, monkeypatch):
         from fastapi.testclient import TestClient
         from app.api.main import app
+        from app.agents import pa_agent
         from app.services import retrieval_service
         import app.services.openai_service as oai
 
         _patch_supabase(monkeypatch)
         monkeypatch.setattr(oai, "client", None)
+        monkeypatch.setattr(pa_agent, "log_request", lambda request_text: None)
+        monkeypatch.setattr(pa_agent, "get_assistant_name", lambda: "WilliamOS")
+        monkeypatch.setattr(pa_agent, "get_recent_memory_text", lambda limit=20: "")
 
         doc_store = _make_store_with_doc("Invoice for boat service: 15 000 NOK")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])

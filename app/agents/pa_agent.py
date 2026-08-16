@@ -2,9 +2,9 @@ from pathlib import Path
 import re
 
 from app.services.openai_service import chat_completion, chat_completion_with_tools
-from app.services.memory_service import get_recent_memory_text
+from app.services.profile_service import DEFAULT_ASSISTANT_NAME, get_assistant_name
 from app.agents.self_evolve import log_request
-from app.services.memory_service import save_memory
+from app.services.memory_service import get_recent_memory_text, save_memory
 from app.services.retrieval_service import build_document_context
 from app.services.storage_service import list_records
 from app.services.action_engine import (
@@ -344,6 +344,31 @@ def load_system_prompt() -> str:
         return DEFAULT_PROMPT
 
 
+def build_system_prompt(
+    assistant_name: str | None = None,
+    user_name: str | None = None,
+) -> str:
+    """Personalize the base prompt with assistant and user names."""
+    name = (assistant_name or DEFAULT_ASSISTANT_NAME).strip() or DEFAULT_ASSISTANT_NAME
+    user_label = (user_name or "brukeren").strip() or "brukeren"
+    base = load_system_prompt()
+
+    lines = [
+        line
+        for line in base.splitlines()
+        if not line.startswith("You are WilliamOS,")
+    ]
+    body = "\n".join(lines).strip()
+    body = body.replace("WilliamOS workspace", f"{name} workspace")
+    body = body.replace("help William stay on top of:", f"help {user_label} stay on top of:")
+
+    return (
+        f"You are {name}, {user_label}'s personal AI assistant.\n"
+        f"When speaking to the user, refer to yourself as {name}.\n\n"
+        f"{body}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Simple regex-based action handler (fast path, no LLM needed)
 # ---------------------------------------------------------------------------
@@ -457,8 +482,15 @@ def ask_agent(
 
     log_request(message)
 
+    from app.services.auth_context import get_current_context
+
+    context = get_current_context()
+    assistant_name = get_assistant_name()
     memory = get_recent_memory_text()
-    system_prompt = load_system_prompt()
+    system_prompt = build_system_prompt(
+        assistant_name=assistant_name,
+        user_name=context.display_name if context else None,
+    )
 
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},

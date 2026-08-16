@@ -12,6 +12,7 @@ class UserContext:
     access_token: str
     refresh_token: str
     display_name: str | None = None
+    assistant_name: str | None = None
 
 
 _current_context: ContextVar[UserContext | None] = ContextVar("current_context", default=None)

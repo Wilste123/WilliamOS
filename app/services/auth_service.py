@@ -8,7 +8,13 @@ from app.services.auth_context import UserContext, get_current_context, set_curr
 SESSION_KEY = "auth_session"
 
 
-def _build_context(session, user, household_id: str, display_name: str | None = None) -> UserContext:
+def _build_context(
+    session,
+    user,
+    household_id: str,
+    display_name: str | None = None,
+    assistant_name: str | None = None,
+) -> UserContext:
     return UserContext(
         user_id=user.id,
         email=user.email or "",
@@ -16,6 +22,7 @@ def _build_context(session, user, household_id: str, display_name: str | None = 
         access_token=session.access_token,
         refresh_token=session.refresh_token,
         display_name=display_name,
+        assistant_name=assistant_name,
     )
 
 
@@ -43,17 +50,19 @@ def _resolve_household_id(client, user_id: str) -> str:
     raise RuntimeError("Fant ingen husholdning for brukeren. Kontakt administrator.")
 
 
-def _load_profile_name(client, user_id: str) -> str | None:
+def _load_profile(client, user_id: str) -> dict:
     profile = (
         client.table("user_profiles")
-        .select("display_name")
+        .select("display_name, assistant_name")
         .eq("id", user_id)
         .maybe_single()
         .execute()
     )
-    if profile.data:
-        return profile.data.get("display_name")
-    return None
+    return profile.data or {}
+
+
+def _load_profile_name(client, user_id: str) -> str | None:
+    return _load_profile(client, user_id).get("display_name")
 
 
 def sign_up(email: str, password: str, display_name: str, household_name: str) -> UserContext:
@@ -127,13 +136,14 @@ def sign_in(email: str, password: str) -> UserContext:
         auth_response.session.refresh_token,
     )
     household_id = _resolve_household_id(authed, auth_response.user.id)
-    display_name = _load_profile_name(authed, auth_response.user.id)
+    profile = _load_profile(authed, auth_response.user.id)
 
     return _build_context(
         auth_response.session,
         auth_response.user,
         household_id,
-        display_name,
+        profile.get("display_name"),
+        profile.get("assistant_name"),
     )
 
 
@@ -157,6 +167,7 @@ def save_session_to_state(context: UserContext) -> None:
         "access_token": context.access_token,
         "refresh_token": context.refresh_token,
         "display_name": context.display_name,
+        "assistant_name": context.assistant_name,
     }
     set_current_context(context)
 
@@ -174,6 +185,7 @@ def restore_session_from_state() -> UserContext | None:
         access_token=data["access_token"],
         refresh_token=data["refresh_token"],
         display_name=data.get("display_name"),
+        assistant_name=data.get("assistant_name"),
     )
     set_current_context(context)
     return context
