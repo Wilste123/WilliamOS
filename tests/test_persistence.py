@@ -48,6 +48,9 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
             self._order_desc = desc
             return self
 
+        def limit(self, _count):
+            return self
+
         def maybe_single(self):
             self._single = True
             return self

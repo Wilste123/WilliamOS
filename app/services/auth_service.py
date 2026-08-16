@@ -26,17 +26,38 @@ def _build_context(
     )
 
 
-def _resolve_household_id(client, user_id: str) -> str:
-    profile = (
+def _extract_display_name(user) -> str | None:
+    metadata = getattr(user, "user_metadata", None) or {}
+    if isinstance(metadata, dict):
+        name = metadata.get("display_name") or metadata.get("full_name") or metadata.get("name")
+        if name:
+            return str(name).strip()
+    return None
+
+
+def _first_row(response, default=None):
+    """Return the first row from a Supabase list response."""
+    rows = response_data(response, []) or []
+    if not rows:
+        return default
+    return rows[0]
+
+
+def _load_profile(client, user_id: str) -> dict:
+    response = (
         client.table("user_profiles")
-        .select("default_household_id")
+        .select("display_name, assistant_name, default_household_id")
         .eq("id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    profile_data = response_data(profile, {}) or {}
-    if profile_data.get("default_household_id"):
-        return profile_data["default_household_id"]
+    return _first_row(response, {}) or {}
+
+
+def _find_household_id(client, user_id: str) -> str | None:
+    profile = _load_profile(client, user_id)
+    if profile.get("default_household_id"):
+        return profile["default_household_id"]
 
     membership = (
         client.table("household_members")
@@ -45,26 +66,58 @@ def _resolve_household_id(client, user_id: str) -> str:
         .limit(1)
         .execute()
     )
-    membership_data = response_data(membership, []) or []
-    if membership_data:
-        return membership_data[0]["household_id"]
+    row = _first_row(membership)
+    if row:
+        return row["household_id"]
+    return None
 
-    raise RuntimeError("Fant ingen husholdning for brukeren. Kontakt administrator.")
 
+def _ensure_user_provisioned(client, user, display_name: str | None = None) -> str:
+    """Create household/profile/membership on first login when signup deferred setup."""
+    existing = _find_household_id(client, user.id)
+    if existing:
+        profile = _load_profile(client, user.id)
+        if not profile.get("default_household_id"):
+            client.table("user_profiles").update({"default_household_id": existing}).eq("id", user.id).execute()
+        return existing
 
-def _load_profile(client, user_id: str) -> dict:
-    profile = (
-        client.table("user_profiles")
-        .select("display_name, assistant_name")
-        .eq("id", user_id)
-        .maybe_single()
+    label = display_name or _extract_display_name(user) or (user.email.split("@")[0] if user.email else "Min")
+    household = (
+        client.table("households")
+        .insert({"name": f"{label}s husholdning", "created_by": user.id})
         .execute()
     )
-    return response_data(profile, {}) or {}
+    household_row = _first_row(household)
+    if not household_row:
+        raise RuntimeError("Kunne ikke opprette husholdning ved innlogging.")
+    household_id = household_row["id"]
 
+    client.table("household_members").insert(
+        {
+            "household_id": household_id,
+            "user_id": user.id,
+            "role": "owner",
+        }
+    ).execute()
 
-def _load_profile_name(client, user_id: str) -> str | None:
-    return _load_profile(client, user_id).get("display_name")
+    profile = _load_profile(client, user.id)
+    if profile:
+        client.table("user_profiles").update(
+            {
+                "display_name": display_name or profile.get("display_name") or label,
+                "default_household_id": household_id,
+            }
+        ).eq("id", user.id).execute()
+    else:
+        client.table("user_profiles").insert(
+            {
+                "id": user.id,
+                "display_name": display_name or label,
+                "default_household_id": household_id,
+            }
+        ).execute()
+
+    return household_id
 
 
 def sign_up(email: str, password: str, display_name: str, household_name: str) -> UserContext:
@@ -84,38 +137,16 @@ def sign_up(email: str, password: str, display_name: str, household_name: str) -
 
     if auth_response.session is None:
         raise RuntimeError(
-            "Bruker opprettet. Bekreft e-posten din i Supabase hvis e-postbekreftelse er påslått, "
-            "og logg inn etterpå."
+            "Bruker opprettet. Bekreft e-posten din, logg deretter inn — "
+            "husholdning og profil opprettes automatisk ved første innlogging."
         )
 
     authed = get_authenticated_client(
         auth_response.session.access_token,
         auth_response.session.refresh_token,
     )
-    household = (
-        authed.table("households")
-        .insert({"name": household_name.strip(), "created_by": auth_response.user.id})
-        .execute()
-    )
-    household_data = response_data(household, [])
-    if not household_data:
-        raise RuntimeError("Kunne ikke opprette husholdning.")
-    household_id = household_data[0]["id"]
-
-    authed.table("household_members").insert(
-        {
-            "household_id": household_id,
-            "user_id": auth_response.user.id,
-            "role": "owner",
-        }
-    ).execute()
-    authed.table("user_profiles").insert(
-        {
-            "id": auth_response.user.id,
-            "display_name": display_name.strip(),
-            "default_household_id": household_id,
-        }
-    ).execute()
+    household_id = _ensure_user_provisioned(authed, auth_response.user, display_name.strip())
+    authed.table("households").update({"name": household_name.strip()}).eq("id", household_id).execute()
 
     return _build_context(
         auth_response.session,
@@ -140,14 +171,15 @@ def sign_in(email: str, password: str) -> UserContext:
         auth_response.session.access_token,
         auth_response.session.refresh_token,
     )
-    household_id = _resolve_household_id(authed, auth_response.user.id)
+    display_name = _extract_display_name(auth_response.user)
+    household_id = _ensure_user_provisioned(authed, auth_response.user, display_name)
     profile = _load_profile(authed, auth_response.user.id)
 
     return _build_context(
         auth_response.session,
         auth_response.user,
         household_id,
-        profile.get("display_name"),
+        profile.get("display_name") or display_name,
         profile.get("assistant_name"),
     )
 

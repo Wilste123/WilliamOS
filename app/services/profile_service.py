@@ -26,14 +26,15 @@ def get_assistant_name() -> str:
         return DEFAULT_ASSISTANT_NAME
 
     try:
-        profile = (
+        response = (
             client.table("user_profiles")
             .select("assistant_name")
             .eq("id", context.user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        profile_data = response_data(profile, {}) or {}
+        rows = response_data(response, []) or []
+        profile_data = rows[0] if rows else {}
         assistant_name = _normalize_assistant_name(profile_data.get("assistant_name"))
     except Exception:
         assistant_name = DEFAULT_ASSISTANT_NAME
@@ -62,14 +63,14 @@ def update_assistant_name(name: str) -> str:
     if client is None:
         raise RuntimeError("Supabase er ikke konfigurert.")
 
-    existing = (
+    response = (
         client.table("user_profiles")
         .select("id")
         .eq("id", context.user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if response_data(existing):
+    if response_data(response, []):
         client.table("user_profiles").update({"assistant_name": assistant_name}).eq("id", context.user_id).execute()
     else:
         client.table("user_profiles").insert(

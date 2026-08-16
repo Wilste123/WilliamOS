@@ -52,4 +52,5 @@ def response_data(response, default=None):
     """
     if response is None:
         return default
-    return response.data if response.data is not None else default
+    data = getattr(response, "data", None)
+    return default if data is None else data

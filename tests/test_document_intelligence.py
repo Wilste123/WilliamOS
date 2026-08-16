@@ -61,6 +61,9 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
             self._order_desc = desc
             return self
 
+        def limit(self, _count):
+            return self
+
         def execute(self):
             rows = store.setdefault(self._collection, [])
             if self._op == "select":

@@ -67,8 +67,11 @@ def list_records(collection: str) -> list[dict]:
 def get_record(collection: str, record_id: str) -> dict | None:
     """Return a single record by id from Supabase."""
     client = _require_supabase("get_record", collection)
-    response = client.table(collection).select("*").eq("id", record_id).maybe_single().execute()
-    return response_data(response)
+    response = client.table(collection).select("*").eq("id", record_id).limit(1).execute()
+    row = response_data(response, [])
+    if not row:
+        return None
+    return row[0]
 
 
 def create_record(collection: str, payload: dict) -> dict:
