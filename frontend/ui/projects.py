@@ -5,7 +5,7 @@ import streamlit as st
 from app.services.action_engine import create_project, update_project
 from app.services.storage_service import list_records
 from frontend.components.record_helpers import build_record_options
-from frontend.components.visibility_helpers import visibility_selectbox, render_collection
+from frontend.components.visibility_helpers import visibility_selectbox
 
 
 def render_projects() -> None:
