@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.database.supabase import response_data
 from app.services.auth_context import get_current_context, set_current_context
 from app.services.storage_service import get_client
 
@@ -24,16 +25,18 @@ def get_assistant_name() -> str:
     if client is None:
         return DEFAULT_ASSISTANT_NAME
 
-    profile = (
-        client.table("user_profiles")
-        .select("assistant_name")
-        .eq("id", context.user_id)
-        .maybe_single()
-        .execute()
-    )
-    assistant_name = _normalize_assistant_name(
-        profile.data.get("assistant_name") if profile.data else None
-    )
+    try:
+        profile = (
+            client.table("user_profiles")
+            .select("assistant_name")
+            .eq("id", context.user_id)
+            .maybe_single()
+            .execute()
+        )
+        profile_data = response_data(profile, {}) or {}
+        assistant_name = _normalize_assistant_name(profile_data.get("assistant_name"))
+    except Exception:
+        assistant_name = DEFAULT_ASSISTANT_NAME
 
     updated = context.__class__(
         user_id=context.user_id,
@@ -59,7 +62,24 @@ def update_assistant_name(name: str) -> str:
     if client is None:
         raise RuntimeError("Supabase er ikke konfigurert.")
 
-    client.table("user_profiles").update({"assistant_name": assistant_name}).eq("id", context.user_id).execute()
+    existing = (
+        client.table("user_profiles")
+        .select("id")
+        .eq("id", context.user_id)
+        .maybe_single()
+        .execute()
+    )
+    if response_data(existing):
+        client.table("user_profiles").update({"assistant_name": assistant_name}).eq("id", context.user_id).execute()
+    else:
+        client.table("user_profiles").insert(
+            {
+                "id": context.user_id,
+                "display_name": context.display_name,
+                "default_household_id": context.household_id,
+                "assistant_name": assistant_name,
+            }
+        ).execute()
 
     updated = context.__class__(
         user_id=context.user_id,

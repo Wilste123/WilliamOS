@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from app.database.supabase import get_authenticated_client, get_supabase_anon
+from app.database.supabase import get_authenticated_client, get_supabase_anon, response_data
 from app.services.auth_context import UserContext, get_current_context, set_current_context
 
 SESSION_KEY = "auth_session"
@@ -34,8 +34,9 @@ def _resolve_household_id(client, user_id: str) -> str:
         .maybe_single()
         .execute()
     )
-    if profile.data and profile.data.get("default_household_id"):
-        return profile.data["default_household_id"]
+    profile_data = response_data(profile, {}) or {}
+    if profile_data.get("default_household_id"):
+        return profile_data["default_household_id"]
 
     membership = (
         client.table("household_members")
@@ -44,8 +45,9 @@ def _resolve_household_id(client, user_id: str) -> str:
         .limit(1)
         .execute()
     )
-    if membership.data:
-        return membership.data[0]["household_id"]
+    membership_data = response_data(membership, []) or []
+    if membership_data:
+        return membership_data[0]["household_id"]
 
     raise RuntimeError("Fant ingen husholdning for brukeren. Kontakt administrator.")
 
@@ -58,7 +60,7 @@ def _load_profile(client, user_id: str) -> dict:
         .maybe_single()
         .execute()
     )
-    return profile.data or {}
+    return response_data(profile, {}) or {}
 
 
 def _load_profile_name(client, user_id: str) -> str | None:
@@ -95,7 +97,10 @@ def sign_up(email: str, password: str, display_name: str, household_name: str) -
         .insert({"name": household_name.strip(), "created_by": auth_response.user.id})
         .execute()
     )
-    household_id = household.data[0]["id"]
+    household_data = response_data(household, [])
+    if not household_data:
+        raise RuntimeError("Kunne ikke opprette husholdning.")
+    household_id = household_data[0]["id"]
 
     authed.table("household_members").insert(
         {

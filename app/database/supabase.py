@@ -43,3 +43,13 @@ def get_authenticated_client(access_token: str, refresh_token: str) -> Client:
         )
     client.auth.set_session(access_token, refresh_token)
     return client
+
+
+def response_data(response, default=None):
+    """Safely read ``.data`` from a Supabase execute() result.
+
+    ``maybe_single().execute()`` can return ``None`` when no row exists.
+    """
+    if response is None:
+        return default
+    return response.data if response.data is not None else default

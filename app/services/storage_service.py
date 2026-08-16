@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.database.supabase import get_authenticated_client, get_supabase
+from app.database.supabase import get_authenticated_client, get_supabase, response_data
 from app.services.auth_context import get_current_context
 
 logger = logging.getLogger(__name__)
@@ -61,14 +61,14 @@ def list_records(collection: str) -> list[dict]:
     """Return all records for *collection* from Supabase."""
     client = _require_supabase("list_records", collection)
     response = client.table(collection).select("*").order("created_at", desc=True).execute()
-    return response.data or []
+    return response_data(response, []) or []
 
 
 def get_record(collection: str, record_id: str) -> dict | None:
     """Return a single record by id from Supabase."""
     client = _require_supabase("get_record", collection)
     response = client.table(collection).select("*").eq("id", record_id).maybe_single().execute()
-    return response.data
+    return response_data(response)
 
 
 def create_record(collection: str, payload: dict) -> dict:
@@ -80,8 +80,9 @@ def create_record(collection: str, payload: dict) -> dict:
         **_apply_auth_fields(collection, payload),
     }
     response = client.table(collection).insert(record).execute()
-    if response.data:
-        return response.data[0]
+    data = response_data(response, [])
+    if data:
+        return data[0]
     raise RuntimeError(f"Supabase insert returned no data for '{collection}'")
 
 
@@ -90,8 +91,9 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
     client = _require_supabase("update_record", collection)
     patch = {**updates, "updated_at": datetime.now(timezone.utc).isoformat()}
     response = client.table(collection).update(patch).eq("id", record_id).execute()
-    if response.data:
-        return response.data[0]
+    data = response_data(response, [])
+    if data:
+        return data[0]
     return None
 
 
