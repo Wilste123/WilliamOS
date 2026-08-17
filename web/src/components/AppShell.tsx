@@ -11,7 +11,6 @@ import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
 import { useClientSession, useIsClient } from "@/lib/use-client-session";
 
 const BOOT_TIMEOUT_MS = 12_000;
-let sessionValidated = false;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,17 +21,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const hiddenLabRoute = isHiddenRoute(pathname);
   const usageLoggedRef = useRef(false);
+  const validatedTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isClient) return;
 
     if (!session) {
+      validatedTokenRef.current = null;
       router.replace("/login");
       return;
     }
 
-    if (sessionValidated) return;
-    sessionValidated = true;
+    if (validatedTokenRef.current === session.access_token) return;
+    validatedTokenRef.current = session.access_token;
 
     let cancelled = false;
     const timeout = new Promise<never>((_, reject) => {
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          validatedTokenRef.current = null;
           logout();
           router.replace("/login");
           return;

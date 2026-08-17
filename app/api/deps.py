@@ -5,7 +5,12 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
 
-from app.services.auth_context import UserContext, set_current_context
+from app.services.auth_context import (
+    UserContext,
+    clear_refreshed_tokens,
+    set_current_context,
+    take_refreshed_tokens,
+)
 from app.services.auth_core import build_context_from_tokens
 
 
@@ -40,6 +45,17 @@ def get_current_user(
         yield context
     finally:
         set_current_context(None)
+
+
+def attach_refreshed_token_headers(response):
+    """Expose rotated Supabase tokens to the browser when a refresh occurred."""
+    tokens = take_refreshed_tokens()
+    if tokens:
+        access_token, refresh_token = tokens
+        response.headers["X-Access-Token"] = access_token
+        response.headers["X-Refresh-Token"] = refresh_token
+        clear_refreshed_tokens()
+    return response
 
 
 CurrentUser = Annotated[UserContext, Depends(get_current_user)]

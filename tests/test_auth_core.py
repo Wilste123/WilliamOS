@@ -23,3 +23,15 @@ def test_email_not_confirmed_maps_to_runtime_error():
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert "Bekreft e-posten" in str(exc)
+
+
+def test_expired_jwt_maps_to_runtime_error():
+    class FakeAuthError(Exception):
+        code = "bad_jwt"
+        message = "invalid JWT: unable to parse or verify signature, token is expired"
+
+    try:
+        _raise_auth_error(FakeAuthError())
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert str(exc) == "Sesjonen er utløpt. Logg inn på nytt."

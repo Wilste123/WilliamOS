@@ -19,6 +19,8 @@ def _raise_auth_error(exc: Exception) -> None:
         raise RuntimeError(
             "Supabase autentisering feilet. Sjekk SUPABASE_URL og SUPABASE_ANON_KEY i .env."
         ) from exc
+    if "expired" in message.lower() or "invalid jwt" in message.lower():
+        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.") from exc
     raise RuntimeError(f"Autentisering feilet: {message}") from exc
 
 
@@ -205,10 +207,34 @@ def sign_in(email: str, password: str) -> UserContext:
 def build_context_from_tokens(access_token: str, refresh_token: str) -> UserContext:
     """Rebuild UserContext from stored tokens (FastAPI / Next.js clients)."""
     client = get_authenticated_client(access_token, refresh_token)
-    user_response = client.auth.get_user(access_token)
-    user = user_response.user if user_response else None
+    user = None
+
+    try:
+        user_response = client.auth.get_user()
+        user = user_response.user if user_response else None
+    except Exception as exc:
+        message = str(getattr(exc, "message", None) or exc).lower()
+        if "expired" not in message and "invalid jwt" not in message:
+            _raise_auth_error(exc)
+
     if user is None:
-        raise RuntimeError("Ugyldig eller utløpt sesjon.")
+        try:
+            refreshed = client.auth.refresh_session()
+        except Exception as exc:
+            _raise_auth_error(exc)
+
+        session = getattr(refreshed, "session", None)
+        user = getattr(refreshed, "user", None)
+        if session is None or user is None:
+            raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
+
+        access_token = session.access_token
+        refresh_token = session.refresh_token
+        client.auth.set_session(access_token, refresh_token)
+
+        from app.services.auth_context import mark_refreshed_tokens
+
+        mark_refreshed_tokens(access_token, refresh_token)
 
     display_name = _extract_display_name(user)
     household_id = _find_household_id(client, user.id)

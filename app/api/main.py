@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.deps import attach_refreshed_token_headers
 from app.api.routes import assets, auth, chat, documents, goals, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
@@ -30,6 +31,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Access-Token", "X-Refresh-Token"],
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -47,6 +49,12 @@ app.include_router(memory.router, prefix="/memory", tags=["memory"])
 app.include_router(usage_router, prefix="/usage", tags=["usage"])
 
 logger = logging.getLogger(__name__)
+
+
+@app.middleware("http")
+async def refreshed_token_middleware(request: Request, call_next):
+    response = await call_next(request)
+    return attach_refreshed_token_headers(response)
 
 
 @app.exception_handler(Exception)

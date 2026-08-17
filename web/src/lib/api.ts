@@ -39,6 +39,15 @@ export class ApiError extends Error {
 
 type RequestOptions = RequestInit & { auth?: boolean };
 
+function syncSessionFromResponse(response: Response): void {
+  const accessToken = response.headers.get("X-Access-Token");
+  const refreshToken = response.headers.get("X-Refresh-Token");
+  if (!accessToken || !refreshToken) return;
+  const session = getSession();
+  if (!session) return;
+  saveSession({ ...session, access_token: accessToken, refresh_token: refreshToken });
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, headers, ...rest } = options;
   const session = getSession();
@@ -80,6 +89,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(parseErrorDetail(payload, response.status), response.status);
   }
 
+  syncSessionFromResponse(response);
   return payload as T;
 }
 
@@ -179,6 +189,7 @@ export async function streamChat(
     const payload = await response.json().catch(() => ({}));
     throw new ApiError(parseErrorDetail(payload, response.status), response.status);
   }
+  syncSessionFromResponse(response);
   if (!response.body) {
     throw new ApiError("Ingen strøm fra serveren.", 0);
   }
