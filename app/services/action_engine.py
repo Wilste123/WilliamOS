@@ -97,6 +97,29 @@ def create_document(payload: dict) -> dict:
     return document
 
 
+def create_goal(payload: dict) -> dict:
+    goal = create_record("goals", payload)
+    append_event(
+        title=f"Mål opprettet: {goal['title']}",
+        event_type="goal_created",
+        notes=goal.get("next_step"),
+        visibility=goal.get("visibility"),
+    )
+    return goal
+
+
+def update_goal(goal_id: str, updates: dict) -> dict | None:
+    goal = update_record("goals", goal_id, updates)
+    if goal:
+        append_event(
+            title=f"Mål oppdatert: {goal['title']}",
+            event_type="goal_updated",
+            notes=goal.get("next_step"),
+            visibility=goal.get("visibility"),
+        )
+    return goal
+
+
 def create_decision(payload: dict) -> dict:
     if payload.get("status") == "decided" and not payload.get("decided_at"):
         payload["decided_at"] = datetime.now(timezone.utc).isoformat()
@@ -377,18 +400,15 @@ def get_asset_detail(asset_id: str) -> dict | None:
 
 def build_weekly_brief() -> dict:
     """Build a structured weekly brief — answers 'Hva bør jeg gjøre denne uka?'"""
+    engine = build_priority_engine()
     dashboard = build_dashboard_summary()
-    decisions = list_records("decisions")
-    open_decisions = [d for d in decisions if d.get("status") != "decided"][:5]
-    assets = list_records("assets")
-    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+    net_worth_nok = engine["net_worth_nok"]
     today = date.today().isoformat()
 
-    open_tasks = [task for task in list_records("tasks") if not task.get("completed")]
     overdue_tasks = [
-        task
-        for task in open_tasks
-        if task.get("due_date") and str(task.get("due_date"))[:10] < today
+        item
+        for item in engine["items"]
+        if item["source_type"] == "task" and item.get("meta", {}).get("overdue")
     ][:5]
 
     lines = ["📋 Ukens brief", ""]
@@ -402,43 +422,39 @@ def build_weekly_brief() -> dict:
 
     if overdue_tasks:
         lines.append("\n**Forfalt — gjør først:**")
-        for task in overdue_tasks:
-            due = f" (frist: {str(task.get('due_date'))[:10]})"
-            lines.append(f"- {task['title']}{due}")
+        for item in overdue_tasks:
+            due = item.get("meta", {}).get("due_date")
+            due_text = f" (frist: {str(due)[:10]})" if due else ""
+            lines.append(f"- {item['title']}{due_text}")
 
-    if dashboard["priorities"]:
-        lines.append("\n**Prioriterte oppgaver:**")
-        for task in dashboard["priorities"]:
-            due = f" (frist: {task.get('due_date')})" if task.get("due_date") else ""
-            lines.append(f"- {task['title']} [P{task.get('priority', 2)}]{due}")
+    top_items = engine["items"][:5]
+    if top_items:
+        lines.append("\n**Topp 5 fokus denne uka:**")
+        for index, item in enumerate(top_items, start=1):
+            reason = item.get("reason")
+            suffix = f" — {reason}" if reason else ""
+            lines.append(f"{index}. {item['title']}{suffix}")
 
-    if dashboard["active_projects"]:
-        lines.append("\n**Aktive prosjekter — neste handling:**")
-        for project in dashboard["active_projects"]:
-            next_action = project.get("next_action") or "Ikke satt"
-            lines.append(f"- {project['name']}: {next_action}")
-
-    if open_decisions:
-        lines.append("\n**Åpne beslutninger:**")
-        for decision in open_decisions:
-            lines.append(f"- {decision['title']}")
-
-    if dashboard["upcoming_events"]:
-        lines.append("\n**Kommende hendelser:**")
-        for event in dashboard["upcoming_events"]:
-            lines.append(f"- {event['title']} ({event.get('event_date', 'dato ukjent')})")
-
-    if not dashboard["priorities"] and not dashboard["active_projects"] and not open_decisions:
+    if not top_items:
         lines.append("\nIngen presserende ting akkurat nå. Bra jobba!")
+
+    task_priorities = [
+        item["record"]
+        for item in engine["items"]
+        if item["source_type"] == "task" and item.get("record")
+    ][:5]
 
     return {
         "summary_text": "\n".join(lines),
-        "priorities": dashboard["priorities"],
-        "overdue_tasks": overdue_tasks,
+        "priorities": task_priorities,
+        "focus_items": top_items,
+        "overdue_tasks": [item["record"] for item in overdue_tasks if item.get("record")],
         "net_worth_nok": net_worth_nok,
         "net_worth_formatted": format_net_worth_nok(net_worth_nok) if net_worth_nok else "—",
         "active_projects": dashboard["active_projects"],
-        "open_decisions": open_decisions,
+        "open_decisions": [
+            d for d in list_records("decisions") if d.get("status") != "decided"
+        ][:5],
         "upcoming_events": dashboard["upcoming_events"],
         "metrics": dashboard["metrics"],
     }
@@ -511,30 +527,16 @@ def format_net_worth_nok(amount: float) -> str:
 
 def build_home_summary(display_name: str | None = None) -> dict:
     """Compact summary for the app home/start screen."""
+    engine = build_priority_engine()
     dashboard = build_dashboard_summary()
-    assets = list_records("assets")
-    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+    net_worth_nok = engine["net_worth_nok"]
 
     goals = _safe_list_records("goals")
     active_goals = len(
         [goal for goal in goals if goal.get("status", "active") in {"active", "open", "in_progress"}]
     )
 
-    priority_titles: list[str] = []
-    for task in dashboard["priorities"]:
-        title = (task.get("title") or "").strip()
-        if title and title not in priority_titles:
-            priority_titles.append(title)
-        if len(priority_titles) >= 3:
-            break
-
-    if len(priority_titles) < 3:
-        for project in dashboard["active_projects"]:
-            title = (project.get("name") or "").strip()
-            if title and title not in priority_titles:
-                priority_titles.append(title)
-            if len(priority_titles) >= 3:
-                break
+    priority_titles = [item["title"] for item in engine["items"][:3] if item.get("title")]
 
     first_name = (display_name or "der").split()[0]
 
@@ -545,5 +547,145 @@ def build_home_summary(display_name: str | None = None) -> dict:
         "active_goals": active_goals,
         "open_tasks": dashboard["metrics"]["open_tasks"],
         "priorities": priority_titles,
+        "focus_items": engine["items"][:5],
         "metrics": dashboard["metrics"],
+    }
+
+
+def _parse_date_only(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _priority_item(
+    *,
+    source_type: str,
+    title: str,
+    score: float,
+    reason: str,
+    record: dict | None = None,
+    meta: dict | None = None,
+) -> dict:
+    return {
+        "source_type": source_type,
+        "title": title,
+        "score": score,
+        "reason": reason,
+        "record": record,
+        "meta": meta or {},
+    }
+
+
+def build_priority_engine(limit: int = 5) -> dict:
+    """Merge tasks, goals, projects, inbox and assets into a ranked focus list."""
+    today = date.today()
+    items: list[dict] = []
+
+    assets = list_records("assets")
+    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+
+    open_tasks = [task for task in list_records("tasks") if not task.get("completed")]
+    for task in open_tasks:
+        due = _parse_date_only(task.get("due_date"))
+        priority = int(task.get("priority") or 2)
+        overdue = bool(due and due < today)
+        due_soon = bool(due and today <= due <= date.fromordinal(today.toordinal() + 7))
+        if overdue:
+            score = 100 + priority * 10
+            reason = "Forfalt oppgave"
+        elif due_soon:
+            score = 80 + priority * 10
+            reason = "Frist innen 7 dager"
+        else:
+            score = 40 + priority * 5
+            reason = f"Prioritet P{priority}"
+        items.append(
+            _priority_item(
+                source_type="task",
+                title=task["title"],
+                score=score,
+                reason=reason,
+                record=task,
+                meta={"overdue": overdue, "due_date": task.get("due_date"), "priority": priority},
+            )
+        )
+
+    for project in list_records("projects"):
+        if project.get("status") != "active":
+            continue
+        next_action = (project.get("next_action") or "").strip()
+        title = f"{project['name']}: {next_action}" if next_action else project["name"]
+        items.append(
+            _priority_item(
+                source_type="project",
+                title=title,
+                score=50,
+                reason="Aktivt prosjekt",
+                record=project,
+            )
+        )
+
+    for goal in _safe_list_records("goals"):
+        if goal.get("status") not in {"active", "open", "in_progress"}:
+            continue
+        next_step = (goal.get("next_step") or "").strip()
+        title = f"{goal['title']}: {next_step}" if next_step else goal["title"]
+        target = _parse_date_only(goal.get("target_date"))
+        score = 55
+        reason = "Aktivt mål"
+        if target and target <= date.fromordinal(today.toordinal() + 14):
+            score = 65
+            reason = "Mål med nær frist"
+        items.append(
+            _priority_item(
+                source_type="goal",
+                title=title,
+                score=score,
+                reason=reason,
+                record=goal,
+            )
+        )
+
+    for inbox_item in list_records("inbox_items"):
+        if inbox_item.get("status") in {"processed"}:
+            continue
+        suggestions = inbox_item.get("suggestions") or []
+        task_suggestions = [s for s in suggestions if s.get("object_type") == "task"]
+        if not task_suggestions:
+            continue
+        fields = task_suggestions[0].get("fields") or {}
+        title = fields.get("title") or inbox_item.get("text", "Inbox-forslag")[:80]
+        items.append(
+            _priority_item(
+                source_type="inbox",
+                title=title,
+                score=60,
+                reason="Ubehandlet inbox-forslag",
+                record=inbox_item,
+                meta={"suggestion_index": suggestions.index(task_suggestions[0])},
+            )
+        )
+
+    for decision in list_records("decisions"):
+        if decision.get("status") == "decided":
+            continue
+        items.append(
+            _priority_item(
+                source_type="decision",
+                title=decision["title"],
+                score=45,
+                reason="Åpen beslutning",
+                record=decision,
+            )
+        )
+
+    ranked = sorted(items, key=lambda item: (-item["score"], item["title"]))[:limit]
+    return {
+        "items": ranked,
+        "net_worth_nok": net_worth_nok,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }

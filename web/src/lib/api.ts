@@ -123,8 +123,18 @@ export async function sendChat(message: string, history: { role: string; content
 export type ChatStreamEvent =
   | { type: "status"; phase: string }
   | { type: "token"; text: string }
-  | { type: "done"; sources: unknown[] }
+  | { type: "done"; sources: unknown[]; actions?: ChatAction[] }
   | { type: "error"; message: string };
+
+export type ChatAction = {
+  id: string;
+  type: string;
+  label: string;
+  title: string;
+  status: "completed" | "proposed";
+  payload?: Record<string, unknown>;
+  result_id?: string;
+};
 
 export async function streamChat(
   message: string,
@@ -257,11 +267,25 @@ export async function fetchWeeklyBrief() {
 export type WeeklyBrief = {
   summary_text: string;
   priorities?: Record<string, unknown>[];
+  focus_items?: PriorityFocusItem[];
   active_projects?: Record<string, unknown>[];
   open_decisions?: Record<string, unknown>[];
   upcoming_events?: Record<string, unknown>[];
   metrics?: Record<string, number>;
 };
+
+export type PriorityFocusItem = {
+  source_type: string;
+  title: string;
+  score: number;
+  reason: string;
+  record?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+};
+
+export async function fetchPriorities() {
+  return request<{ items: PriorityFocusItem[]; net_worth_nok: number }>("/priorities");
+}
 
 export async function fetchTimeline() {
   return request<Record<string, unknown>[]>("/timeline");
@@ -327,10 +351,65 @@ export async function uploadDocument(
   if (options.assetId) form.append("asset_id", options.assetId);
   if (options.projectId) form.append("project_id", options.projectId);
   if (options.sourceModule) form.append("source_module", options.sourceModule);
-  return request<Record<string, unknown>>("/documents/upload", {
+  return request<DocumentUploadResult>("/documents/upload", {
     method: "POST",
     body: form,
   });
+}
+
+export type DocumentSuggestion = {
+  id: string;
+  type: string;
+  label: string;
+  message: string;
+  payload?: Record<string, unknown>;
+};
+
+export type DocumentUploadResult = Record<string, unknown> & {
+  intelligence?: {
+    doc_type: string;
+    suggested_asset_id?: string | null;
+    suggestions?: DocumentSuggestion[];
+  };
+};
+
+export async function applyDocumentSuggestion(
+  documentId: string,
+  suggestionId: string,
+  payload: Record<string, unknown> = {}
+) {
+  return request<{ applied: boolean }>(`/documents/${documentId}/apply-suggestion`, {
+    method: "POST",
+    body: JSON.stringify({ suggestion_id: suggestionId, payload }),
+  });
+}
+
+export async function fetchGoals() {
+  return request<Record<string, unknown>[]>("/goals");
+}
+
+export async function createGoal(body: Record<string, unknown>) {
+  return createRecord("/goals", body);
+}
+
+export async function updateGoal(goalId: string, body: Record<string, unknown>) {
+  return patchRecord(`/goals/${goalId}`, body);
+}
+
+export async function executeChatAction(action: ChatAction) {
+  if (action.type === "create_task") {
+    return createRecord("/tasks", action.payload ?? { title: action.title, priority: 2, status: "open" });
+  }
+  if (action.type === "create_asset") {
+    return createRecord("/assets", action.payload ?? { name: action.title, status: "active" });
+  }
+  if (action.type === "create_project") {
+    return createRecord("/projects", action.payload ?? { name: action.title, status: "active" });
+  }
+  if (action.type === "create_decision") {
+    return createRecord("/decisions", action.payload ?? { title: action.title, status: "open" });
+  }
+  throw new ApiError(`Ukjent handling: ${action.type}`, 400);
 }
 
 export type ChatHistoryMessage = {

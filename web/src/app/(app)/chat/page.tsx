@@ -3,12 +3,21 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 
-import { fetchMe, streamChat, fetchChatHistory, appendChatHistory, type ChatStreamEvent } from "@/lib/api";
+import {
+  fetchMe,
+  streamChat,
+  fetchChatHistory,
+  appendChatHistory,
+  executeChatAction,
+  type ChatAction,
+  type ChatStreamEvent,
+} from "@/lib/api";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
   sources?: unknown[];
+  actions?: ChatAction[];
 };
 
 const CHAT_STORAGE_KEY = "mini_jarv_chat_history";
@@ -41,6 +50,49 @@ function toMessages(rows: { role: string; content: string }[]): Message[] {
       role: row.role as "user" | "assistant",
       content: row.content,
     }));
+}
+
+function ActionCards({
+  actions,
+  onActionDone,
+}: {
+  actions: ChatAction[];
+  onActionDone: (actionId: string, message: string) => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  if (!actions.length) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {actions.map((action) => (
+        <button
+          key={action.id}
+          type="button"
+          disabled={action.status === "completed" || busyId === action.id}
+          onClick={async () => {
+            if (action.status === "completed") return;
+            setBusyId(action.id);
+            try {
+              await executeChatAction(action);
+              onActionDone(action.id, `✅ ${action.label}: ${action.title}`);
+            } catch {
+              onActionDone(action.id, `Kunne ikke utføre: ${action.label}`);
+            } finally {
+              setBusyId(null);
+            }
+          }}
+          className={`rounded-full px-3 py-1.5 text-xs ${
+            action.status === "completed"
+              ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : "border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+          } disabled:opacity-60`}
+        >
+          {action.status === "completed" ? `✓ ${action.title}` : `[${action.label}] ${action.title}`}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function ChatPageInner() {
@@ -95,6 +147,7 @@ function ChatPageInner() {
 
     let assistant = "";
     let sources: unknown[] = [];
+    let actions: ChatAction[] = [];
     let sawToken = false;
 
     try {
@@ -111,13 +164,14 @@ function ChatPageInner() {
             setStreaming(true);
             assistant += event.text;
             setPhase(null);
-            setMessages([...nextMessages, { role: "assistant", content: assistant, sources }]);
+            setMessages([...nextMessages, { role: "assistant", content: assistant, sources, actions }]);
             return;
           }
           if (event.type === "done") {
             sources = event.sources ?? [];
+            actions = event.actions ?? [];
             if (assistant) {
-              setMessages([...nextMessages, { role: "assistant", content: assistant, sources }]);
+              setMessages([...nextMessages, { role: "assistant", content: assistant, sources, actions }]);
             }
             return;
           }
@@ -140,7 +194,7 @@ function ChatPageInner() {
       } else if (assistant) {
         const finalMessages: Message[] = [
           ...nextMessages,
-          { role: "assistant", content: assistant, sources },
+          { role: "assistant", content: assistant, sources, actions },
         ];
         appendChatHistory(
           finalMessages.slice(-2).map((m) => ({ role: m.role, content: m.content }))
@@ -156,6 +210,21 @@ function ChatPageInner() {
       setPhase(null);
       setStreaming(false);
     }
+  }
+
+  function markActionDone(messageIndex: number, actionId: string, note: string) {
+    setMessages((current) =>
+      current.map((message, index) => {
+        if (index !== messageIndex || !message.actions) return message;
+        return {
+          ...message,
+          content: `${message.content}\n${note}`,
+          actions: message.actions.map((action) =>
+            action.id === actionId ? { ...action, status: "completed" as const } : action
+          ),
+        };
+      })
+    );
   }
 
   async function onSubmit(event: FormEvent) {
@@ -212,6 +281,12 @@ function ChatPageInner() {
                   <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle" />
                 )}
             </div>
+            {message.role === "assistant" && message.actions && message.actions.length > 0 && (
+              <ActionCards
+                actions={message.actions}
+                onActionDone={(actionId, note) => markActionDone(index, actionId, note)}
+              />
+            )}
             {message.role === "assistant" && message.sources && message.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {message.sources.slice(0, 3).map((source, sourceIndex) => (

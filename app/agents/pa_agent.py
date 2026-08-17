@@ -9,6 +9,7 @@ from app.services.retrieval_service import build_document_context
 from app.services.storage_service import list_records
 from app.services.action_engine import (
     build_dashboard_summary,
+    build_priority_engine,
     build_weekly_brief,
     capture_inbox_entry,
     create_asset,
@@ -21,6 +22,7 @@ from app.services.action_engine import (
     update_project,
     update_task,
 )
+from app.services.chat_actions import merge_chat_actions, tool_result_to_action
 
 PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "pa_system_prompt.txt"
 DEFAULT_PROMPT = "You are WilliamOS, William's practical personal assistant. Answer in Norwegian."
@@ -249,6 +251,14 @@ WILLIAMOS_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_priority_focus",
+            "description": "Hent rangert topp-5 fokusliste fra oppgaver, mål, prosjekter og inbox. Bruk når brukeren spør hva de bør prioritere.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_weekly_brief",
             "description": "Hent ukens brief med prioriterte oppgaver, aktive prosjekter, åpne beslutninger og kommende hendelser. Bruk når brukeren spør hva de bør gjøre denne uka.",
             "parameters": {"type": "object", "properties": {}},
@@ -275,62 +285,66 @@ WILLIAMOS_TOOLS: list[dict] = [
 # Tool executor – maps function names to real Python calls
 # ---------------------------------------------------------------------------
 
-def _execute_tool(func_name: str, args: dict) -> object:
+def _execute_tool(func_name: str, args: dict, *, action_log: list[dict] | None = None) -> object:
     clean = {k: v for k, v in args.items() if v is not None}
 
     try:
         if func_name == "create_asset":
-            return create_asset(clean)
-        if func_name == "update_asset":
+            result = create_asset(clean)
+        elif func_name == "update_asset":
             asset_id = clean.pop("asset_id")
-            return update_asset(asset_id, clean) or {"error": "Eiendel ikke funnet"}
-        if func_name == "list_assets":
-            return list_records("assets")
-
-        if func_name == "create_task":
+            result = update_asset(asset_id, clean) or {"error": "Eiendel ikke funnet"}
+        elif func_name == "list_assets":
+            result = list_records("assets")
+        elif func_name == "create_task":
             payload = {"priority": 2, "status": "open", **clean}
-            return create_task(payload)
-        if func_name == "update_task":
+            result = create_task(payload)
+        elif func_name == "update_task":
             task_id = clean.pop("task_id")
-            return update_task(task_id, clean) or {"error": "Oppgave ikke funnet"}
-        if func_name == "list_tasks":
-            return list_records("tasks")
-
-        if func_name == "create_project":
+            result = update_task(task_id, clean) or {"error": "Oppgave ikke funnet"}
+        elif func_name == "list_tasks":
+            result = list_records("tasks")
+        elif func_name == "create_project":
             payload = {"status": "active", **clean}
-            return create_project(payload)
-        if func_name == "update_project":
+            result = create_project(payload)
+        elif func_name == "update_project":
             project_id = clean.pop("project_id")
-            return update_project(project_id, clean) or {"error": "Prosjekt ikke funnet"}
-        if func_name == "list_projects":
-            return list_records("projects")
-
-        if func_name == "create_decision":
+            result = update_project(project_id, clean) or {"error": "Prosjekt ikke funnet"}
+        elif func_name == "list_projects":
+            result = list_records("projects")
+        elif func_name == "create_decision":
             payload = {"status": "open", **clean}
-            return create_decision(payload)
-        if func_name == "update_decision":
+            result = create_decision(payload)
+        elif func_name == "update_decision":
             decision_id = clean.pop("decision_id")
-            return update_decision(decision_id, clean) or {"error": "Beslutning ikke funnet"}
-        if func_name == "list_decisions":
-            return list_records("decisions")
-
-        if func_name == "create_document":
+            result = update_decision(decision_id, clean) or {"error": "Beslutning ikke funnet"}
+        elif func_name == "list_decisions":
+            result = list_records("decisions")
+        elif func_name == "create_document":
             payload = {"source_module": "chat", **clean}
-            return create_document(payload)
-        if func_name == "get_weekly_brief":
-            return build_weekly_brief()
-        if func_name == "list_documents":
+            result = create_document(payload)
+        elif func_name == "get_weekly_brief":
+            result = build_weekly_brief()
+        elif func_name == "get_priority_focus":
+            result = build_priority_engine()
+        elif func_name == "list_documents":
             docs = list_records("documents")
             if clean.get("asset_id"):
                 docs = [d for d in docs if d.get("asset_id") == clean["asset_id"]]
             if clean.get("project_id"):
                 docs = [d for d in docs if d.get("project_id") == clean["project_id"]]
-            return docs
-
-        return {"error": f"Ukjent funksjon: {func_name}"}
+            result = docs
+        else:
+            result = {"error": f"Ukjent funksjon: {func_name}"}
 
     except Exception as exc:  # noqa: BLE001
-        return {"error": f"Lagring feilet for {func_name}: {exc}"}
+        result = {"error": f"Lagring feilet for {func_name}: {exc}"}
+
+    if action_log is not None:
+        action = tool_result_to_action(func_name, args, result)
+        if action:
+            action_log.append(action)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -376,37 +390,50 @@ def build_system_prompt(
 def handle_actions(message: str):
     msg = message.strip()
     lowered = msg.lower()
+    actions: list[dict] = []
 
     if lowered.startswith("husk "):
         text = message[5:]
         save_memory(text)
-        return {"handled": True, "response": f"✅ Lagret i minnet: {text}"}
+        return {"handled": True, "response": f"✅ Lagret i minnet: {text}", "actions": actions}
 
     action_patterns = [
-        ("task", r"^(lag|opprett)\s+oppgave\s+(?P<content>.+)$"),
-        ("asset", r"^(lag|opprett)\s+(eiendel|asset)\s+(?P<content>.+)$"),
-        ("project", r"^(lag|opprett)\s+prosjekt\s+(?P<content>.+)$"),
-        ("decision", r"^(lag|opprett)\s+beslutning\s+(?P<content>.+)$"),
-        ("inbox", r"^(fang|legg)\s+i\s+innboks\s+(?P<content>.+)$"),
+        ("task", "create_task", r"^(lag|opprett)\s+oppgave\s+(?P<content>.+)$"),
+        ("asset", "create_asset", r"^(lag|opprett)\s+(eiendel|asset)\s+(?P<content>.+)$"),
+        ("project", "create_project", r"^(lag|opprett)\s+prosjekt\s+(?P<content>.+)$"),
+        ("decision", "create_decision", r"^(lag|opprett)\s+beslutning\s+(?P<content>.+)$"),
+        ("inbox", "capture_inbox", r"^(fang|legg)\s+i\s+innboks\s+(?P<content>.+)$"),
     ]
 
-    for action_type, pattern in action_patterns:
+    for action_type, func_name, pattern in action_patterns:
         match = re.match(pattern, msg, flags=re.IGNORECASE)
         if not match:
             continue
         content = match.group("content").strip()
         if action_type == "task":
             task = create_task({"title": content, "priority": 2, "status": "open"})
-            return {"handled": True, "response": f"✅ Oppgave opprettet: {task['title']}"}
+            action = tool_result_to_action(func_name, {"title": content}, task)
+            if action:
+                actions.append(action)
+            return {"handled": True, "response": f"✅ Oppgave opprettet: {task['title']}", "actions": actions}
         if action_type == "asset":
             asset = create_asset({"name": content, "status": "active"})
-            return {"handled": True, "response": f"✅ Eiendel opprettet: {asset['name']}"}
+            action = tool_result_to_action(func_name, {"name": content}, asset)
+            if action:
+                actions.append(action)
+            return {"handled": True, "response": f"✅ Eiendel opprettet: {asset['name']}", "actions": actions}
         if action_type == "project":
             project = create_project({"name": content, "status": "active"})
-            return {"handled": True, "response": f"✅ Prosjekt opprettet: {project['name']}"}
+            action = tool_result_to_action(func_name, {"name": content}, project)
+            if action:
+                actions.append(action)
+            return {"handled": True, "response": f"✅ Prosjekt opprettet: {project['name']}", "actions": actions}
         if action_type == "decision":
             decision = create_decision({"title": content, "status": "open"})
-            return {"handled": True, "response": f"✅ Beslutning opprettet: {decision['title']}"}
+            action = tool_result_to_action(func_name, {"title": content}, decision)
+            if action:
+                actions.append(action)
+            return {"handled": True, "response": f"✅ Beslutning opprettet: {decision['title']}", "actions": actions}
         if action_type == "inbox":
             inbox_item = capture_inbox_entry(content)
             return {
@@ -415,6 +442,7 @@ def handle_actions(message: str):
                     f"✅ Lagret i inbox. "
                     f"Forslag generert: {len(inbox_item.get('suggestions', []))}"
                 ),
+                "actions": actions,
             }
 
     weekly_triggers = (
@@ -422,10 +450,12 @@ def handle_actions(message: str):
         "hva bør jeg gjøre denne uken",
         "ukens prioriteringer",
         "ukens brief",
+        "hva bør jeg prioritere",
+        "hva bør jeg fokusere på",
     )
     if any(trigger in lowered for trigger in weekly_triggers):
         brief = build_weekly_brief()
-        return {"handled": True, "response": brief["summary_text"]}
+        return {"handled": True, "response": brief["summary_text"], "actions": actions}
 
     if lowered == "vis dashboard":
         dashboard = build_dashboard_summary()
@@ -439,9 +469,10 @@ def handle_actions(message: str):
                 f"- Eiendeler: {metrics['assets']}\n"
                 f"- Åpne beslutninger: {metrics['open_decisions']}"
             ),
+            "actions": actions,
         }
 
-    return {"handled": False}
+    return {"handled": False, "actions": actions}
 
 
 # ---------------------------------------------------------------------------
@@ -532,21 +563,36 @@ def ask_agent_stream(
     action_result = handle_actions(message)
     if action_result["handled"]:
         yield {"type": "token", "text": action_result["response"]}
-        yield {"type": "done", "sources": []}
+        yield {
+            "type": "done",
+            "sources": [],
+            "actions": action_result.get("actions") or [],
+        }
         return
 
     log_request(message)
     messages, sources = _build_agent_messages(
         message, use_documents=use_documents, history=history
     )
+    completed_actions: list[dict] = []
+    assistant_text = ""
+
+    def tool_handler(func_name: str, args: dict):
+        return _execute_tool(func_name, args, action_log=completed_actions)
+
     try:
         for kind, value in chat_completion_with_tools_stream(
-            messages, WILLIAMOS_TOOLS, _execute_tool
+            messages, WILLIAMOS_TOOLS, tool_handler
         ):
             if kind == "status":
                 yield {"type": "status", "phase": value}
             else:
+                assistant_text += value
                 yield {"type": "token", "text": value}
-        yield {"type": "done", "sources": sources}
+        yield {
+            "type": "done",
+            "sources": sources,
+            "actions": merge_chat_actions(completed_actions, assistant_text),
+        }
     except Exception as exc:
         yield {"type": "error", "message": str(exc)}

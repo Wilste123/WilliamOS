@@ -57,6 +57,7 @@ Details: [MVP-FOCUS.md](MVP-FOCUS.md)
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Developer reference |
 | [docs/ARCHITECTURE-vision.md](docs/ARCHITECTURE-vision.md) | Target architecture |
 | [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md) | LifeOS / HouseOS vision |
+| [docs/ENDGOAL.md](docs/ENDGOAL.md) | Target state spec (full platform) |
 
 ---
 

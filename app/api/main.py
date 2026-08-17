@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import assets, auth, chat, documents, memory, projects, tasks
+from app.api.routes import assets, auth, chat, documents, goals, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
 from app.api.routes.inbox import router as inbox_router
@@ -37,6 +37,7 @@ app.include_router(overview_router, tags=["overview"])
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(projects.router, prefix="/projects", tags=["projects"])
 app.include_router(assets.router, prefix="/assets", tags=["assets"])
+app.include_router(goals.router, prefix="/goals", tags=["goals"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(decisions_router, prefix="/decisions", tags=["decisions"])
 app.include_router(events_router, prefix="/events", tags=["events"])

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import CurrentUser, get_current_user
-from app.services.action_engine import build_dashboard_summary, build_home_summary, build_timeline, build_weekly_brief
+from app.services.action_engine import build_dashboard_summary, build_home_summary, build_priority_engine, build_timeline, build_weekly_brief
 
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -20,6 +20,11 @@ def dashboard():
 @router.get("/weekly-brief")
 def weekly_brief():
     return build_weekly_brief()
+
+
+@router.get("/priorities")
+def priorities():
+    return build_priority_engine()
 
 
 @router.get("/timeline")

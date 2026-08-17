@@ -26,6 +26,7 @@ export const MVP_SECONDARY_NAV: NavItem[] = [
 /** Lab / later modules — hidden from nav during MVP testing */
 export const MVP_HIDDEN_NAV: Omit<NavItem, "icon">[] = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/goals", label: "Mål" },
   { href: "/projects", label: "Prosjekter" },
   { href: "/decisions", label: "Beslutninger" },
   { href: "/events", label: "Hendelser" },

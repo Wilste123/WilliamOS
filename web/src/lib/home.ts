@@ -5,6 +5,7 @@ export type HomeSummary = {
   active_goals: number;
   open_tasks: number;
   priorities: string[];
+  focus_items?: import("./api").PriorityFocusItem[];
   metrics?: {
     projects: number;
   };

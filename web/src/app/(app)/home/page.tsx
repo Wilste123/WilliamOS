@@ -135,7 +135,17 @@ export default function HomePage() {
             Spør i chat
           </Link>
         </div>
-        {brief?.priorities && brief.priorities.length > 0 ? (
+        {brief?.focus_items && brief.focus_items.length > 0 ? (
+          <ul className="space-y-2">
+            {brief.focus_items.slice(0, 5).map((item) => (
+              <li key={`${item.source_type}-${item.title}`} className="rounded-xl bg-zinc-900/60 px-3 py-2 text-sm">
+                <span className="text-xs uppercase text-muted">{item.source_type}</span>
+                <p>{item.title}</p>
+                {item.reason ? <p className="text-xs text-muted">{item.reason}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : brief?.priorities && brief.priorities.length > 0 ? (
           <ul className="space-y-2">
             {brief.priorities.slice(0, 3).map((task) => (
               <li key={String(task.id ?? task.title)} className="rounded-xl bg-zinc-900/60 px-3 py-2 text-sm">
@@ -153,7 +163,26 @@ export default function HomePage() {
 
       <section className="rounded-2xl border border-border p-4">
         <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">Prioriteringer</h2>
-        {summary.priorities.length > 0 ? (
+        {summary.focus_items && summary.focus_items.length > 0 ? (
+          <ol className="space-y-3">
+            {summary.focus_items.map((item, index) => (
+              <li key={`${item.source_type}-${item.title}`}>
+                <Link
+                  href={`/chat?prompt=${encodeURIComponent(`Hjelp meg med: ${item.title}`)}`}
+                  className="flex items-start gap-3 rounded-xl px-1 py-1 transition hover:bg-zinc-900/50"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-medium text-accent">
+                    {index + 1}
+                  </span>
+                  <span className="pt-0.5">
+                    <span className="block text-base">{item.title}</span>
+                    <span className="text-xs text-muted">{item.reason}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        ) : summary.priorities.length > 0 ? (
           <ol className="space-y-3">
             {summary.priorities.map((title, index) => (
               <li key={title}>
