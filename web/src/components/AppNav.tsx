@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
 import { useState } from "react";
 
 import { NavIcon } from "@/components/NavIcon";
 import {
   APP_NAME,
   isNavActive,
-  MVP_PRIMARY_NAV,
-  MVP_SECONDARY_NAV,
+  LIFE_NAV,
+  MORE_NAV,
+  OVERVIEW_NAV,
+  PRIMARY_NAV,
+  SYSTEM_NAV,
   type NavItem,
 } from "@/lib/navigation";
 
@@ -41,27 +43,43 @@ function NavLink({
   );
 }
 
+function NavSection({
+  title,
+  items,
+  pathname,
+  onNavigate,
+}: {
+  title: string;
+  items: NavItem[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            active={isNavActive(pathname, item.href)}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AppNav({ onNavigate }: AppNavProps) {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(
-    MVP_SECONDARY_NAV.some((item) => isNavActive(pathname, item.href))
-  );
+  const [moreOpen, setMoreOpen] = useState(MORE_NAV.some((item) => isNavActive(pathname, item.href)));
 
   return (
     <nav className="space-y-4">
-      <div>
-        <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-muted">Hoved</p>
-        <div className="space-y-1">
-          {MVP_PRIMARY_NAV.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={isNavActive(pathname, item.href)}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-      </div>
+      <NavSection title="Hoved" items={PRIMARY_NAV} pathname={pathname} onNavigate={onNavigate} />
+      <NavSection title="Oversikt" items={OVERVIEW_NAV} pathname={pathname} onNavigate={onNavigate} />
 
       <div>
         <button
@@ -69,26 +87,18 @@ export function AppNav({ onNavigate }: AppNavProps) {
           onClick={() => setMoreOpen((open) => !open)}
           className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted hover:bg-zinc-900"
         >
-          Mer
+          Liv & data
           <span>{moreOpen ? "▾" : "▸"}</span>
         </button>
         {moreOpen && (
-          <div className="mt-1 space-y-1">
-            {MVP_SECONDARY_NAV.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                active={isNavActive(pathname, item.href)}
-                onNavigate={onNavigate}
-              />
-            ))}
+          <div className="mt-1 space-y-4">
+            <NavSection title="" items={LIFE_NAV} pathname={pathname} onNavigate={onNavigate} />
+            <NavSection title="" items={SYSTEM_NAV} pathname={pathname} onNavigate={onNavigate} />
           </div>
         )}
       </div>
 
-      <p className="px-3 text-xs text-muted">
-        {APP_NAME} MVP — lab-moduler er skjult. Bruk Streamlit for full moduliste.
-      </p>
+      <p className="px-3 text-xs text-muted">{APP_NAME} — full app</p>
     </nav>
   );
 }

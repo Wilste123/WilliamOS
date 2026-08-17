@@ -22,6 +22,8 @@ Run in Supabase SQL Editor, **in order**:
 2. `migrations/2026-08-16_auth_households.sql`
 3. `migrations/2026-08-16_assistant_name.sql`
 4. `migrations/2026-08-17_usage_log.sql`
+5. `migrations/2026-08-17_goals.sql`
+6. `migrations/2026-08-17_finance_health_integrations.sql`
 
 Create a Storage bucket named `documents` (or match `DOCUMENTS_BUCKET` in `.env`).
 

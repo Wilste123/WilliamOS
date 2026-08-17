@@ -6,10 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.deps import attach_refreshed_token_headers
-from app.api.routes import assets, auth, chat, documents, goals, memory, projects, tasks
+from app.api.routes import assets, auth, chat, documents, finance, goals, health, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
 from app.api.routes.inbox import router as inbox_router
+from app.api.routes.integrations import router as integrations_router
 from app.api.routes.overview import router as overview_router
 from app.api.routes.usage import router as usage_router
 
@@ -42,6 +43,9 @@ app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(projects.router, prefix="/projects", tags=["projects"])
 app.include_router(assets.router, prefix="/assets", tags=["assets"])
 app.include_router(goals.router, prefix="/goals", tags=["goals"])
+app.include_router(finance.router, prefix="/finance", tags=["finance"])
+app.include_router(health.router, prefix="/health-data", tags=["health"])
+app.include_router(integrations_router, prefix="/integrations", tags=["integrations"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(decisions_router, prefix="/decisions", tags=["decisions"])
 app.include_router(events_router, prefix="/events", tags=["events"])

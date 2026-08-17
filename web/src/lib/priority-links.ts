@@ -16,10 +16,10 @@ export function priorityItemHref(item: PriorityFocusItem): string {
       return "/goals";
     case "project":
       return "/projects";
-    case "inbox":
-      return "/inbox";
     case "decision":
       return "/decisions";
+    case "inbox":
+      return "/inbox";
     default:
       return chatPrompt(item.title);
   }
@@ -31,6 +31,10 @@ export function priorityItemActionLabel(item: PriorityFocusItem): string | null 
       return "Gå til inbox";
     case "goal":
       return "Se mål";
+    case "project":
+      return "Se prosjekt";
+    case "decision":
+      return "Se beslutning";
     case "task":
       return item.record?.asset_id ? "Se eiendel" : "Snakk med PA";
     default:

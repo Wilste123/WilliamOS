@@ -177,7 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
           {hiddenLabRoute && (
             <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              Lab-modul (skjult i MVP). Denne siden er ikke en del av test-appen ennå.
+              Intern utviklerside — ikke en del av produkt-UI.
             </p>
           )}
           {children}

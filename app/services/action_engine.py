@@ -716,11 +716,14 @@ def _priority_item(
 
 def build_priority_engine(limit: int = 5) -> dict:
     """Merge tasks, goals, projects, inbox and assets into a ranked focus list."""
+    from app.services.finance_service import compute_net_worth
+
     today = date.today()
     items: list[dict] = []
 
     assets = list_records("assets")
-    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+    finance = compute_net_worth()
+    net_worth_nok = finance["net_worth_nok"]
 
     open_tasks = [
         task

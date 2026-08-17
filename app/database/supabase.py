@@ -41,7 +41,15 @@ def get_authenticated_client(access_token: str, refresh_token: str) -> Client:
         raise RuntimeError(
             "Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables."
         )
-    client.auth.set_session(access_token, refresh_token)
+    token = (access_token or "").strip()
+    if token.count(".") < 2:
+        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
+    if not (refresh_token or "").strip():
+        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
+    try:
+        client.auth.set_session(token, refresh_token.strip())
+    except IndexError as exc:
+        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.") from exc
     return client
 
 

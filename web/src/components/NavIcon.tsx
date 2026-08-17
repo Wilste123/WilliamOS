@@ -1,13 +1,21 @@
 import {
   Brain,
+  CalendarDays,
   CheckSquare,
+  FileText,
+  FolderKanban,
+  GitBranch,
   Goal,
+  HeartPulse,
   History,
   Home,
   Inbox,
+  LayoutDashboard,
   MessageCircle,
   Package,
+  Plug,
   Settings,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,12 +23,20 @@ import type { NavIconName } from "@/lib/navigation";
 
 const ICONS: Record<NavIconName, LucideIcon> = {
   home: Home,
+  dashboard: LayoutDashboard,
   chat: MessageCircle,
   inbox: Inbox,
   tasks: CheckSquare,
   assets: Package,
   goals: Goal,
+  projects: FolderKanban,
+  decisions: GitBranch,
+  documents: FileText,
   timeline: History,
+  events: CalendarDays,
+  finance: Wallet,
+  health: HeartPulse,
+  integrations: Plug,
   memory: Brain,
   settings: Settings,
 };

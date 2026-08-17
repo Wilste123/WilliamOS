@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { CheckSquare, Menu } from "lucide-react";
 
 import { NavIcon } from "@/components/NavIcon";
-import { isNavActive, MVP_PRIMARY_NAV } from "@/lib/navigation";
+import { isNavActive, MORE_NAV, PRIMARY_NAV } from "@/lib/navigation";
 
 type BottomNavProps = {
   onOpenMenu: () => void;
@@ -13,7 +13,8 @@ type BottomNavProps = {
 
 export function BottomNav({ onOpenMenu }: BottomNavProps) {
   const pathname = usePathname();
-  const quickLinks = MVP_PRIMARY_NAV.filter((item) => item.href !== "/tasks");
+  const quickLinks = PRIMARY_NAV.filter((item) => item.href !== "/tasks");
+  const moreActive = MORE_NAV.some((item) => isNavActive(pathname, item.href));
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden">
@@ -45,7 +46,9 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
         <button
           type="button"
           onClick={onOpenMenu}
-          className="flex min-h-11 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px] text-muted"
+          className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px] ${
+            moreActive ? "text-accent" : "text-muted"
+          }`}
         >
           <Menu className="h-5 w-5" />
           <span>Mer</span>

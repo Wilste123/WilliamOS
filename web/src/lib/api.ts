@@ -476,3 +476,72 @@ export async function recordAppOpen() {
 export async function fetchUsageStats() {
   return request<UsageStats>("/usage");
 }
+
+export type FinanceSummary = {
+  net_worth_nok: number;
+  net_worth_formatted: string;
+  physical_assets_nok: number;
+  finance_assets_nok: number;
+  liquidity_nok: number;
+  debt_nok: number;
+  change_12m_nok: number | null;
+  change_12m_formatted: string | null;
+  accounts: Record<string, unknown>[];
+};
+
+export async function fetchFinanceSummary() {
+  return request<FinanceSummary>("/finance/summary");
+}
+
+export type HealthSummary = {
+  latest_weight_kg: number | null;
+  latest_weight_at: string | null;
+  avg_sleep_hours_7d: number | null;
+  avg_activity_minutes_7d: number | null;
+  avg_steps_7d: number | null;
+  weight_goal: Record<string, unknown> | null;
+  recent_metrics: Record<string, unknown>[];
+  sources: string[];
+};
+
+export async function fetchHealthSummary() {
+  return request<HealthSummary>("/health-data/summary");
+}
+
+export type IntegrationStatus = {
+  provider: string;
+  label: string;
+  description: string;
+  connect_type: string;
+  status: string;
+  last_sync_at: string | null;
+  configured: boolean;
+};
+
+export async function fetchIntegrations() {
+  return request<IntegrationStatus[]>("/integrations");
+}
+
+export async function connectIntegration(provider: string) {
+  return request<{ auth_url?: string; configured?: boolean } & Record<string, unknown>>(
+    `/integrations/${provider}/connect`,
+    { method: "POST" }
+  );
+}
+
+export async function completeOutlookIntegration(code: string, state: string) {
+  return request<Record<string, unknown>>("/integrations/outlook/complete", {
+    method: "POST",
+    body: JSON.stringify({ code, state }),
+  });
+}
+
+export async function disconnectIntegration(provider: string) {
+  return request<Record<string, unknown>>(`/integrations/${provider}/disconnect`, { method: "POST" });
+}
+
+export async function syncIntegration(provider: string) {
+  return request<{ synced_signals?: number; message?: string }>(`/integrations/${provider}/sync`, {
+    method: "POST",
+  });
+}
