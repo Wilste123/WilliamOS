@@ -6,104 +6,83 @@ import { useEffect, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
 import { ApiError, fetchMe, recordAppOpen } from "@/lib/api";
-import { getSession, logout, type AuthSession } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
+import { useClientSession, useIsClient } from "@/lib/use-client-session";
 
 const BOOT_TIMEOUT_MS = 12_000;
-
-type BootState = "loading" | "ready" | "redirecting" | "error";
-
-function sessionDisplayName(session: AuthSession | null): string | null {
-  if (!session) return null;
-  return session.display_name ?? session.email ?? null;
-}
+let sessionValidated = false;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const session = getSession();
-  const [bootState, setBootState] = useState<BootState>(() =>
-    session ? "ready" : "loading"
-  );
-  const [displayName, setDisplayName] = useState<string | null>(() =>
-    sessionDisplayName(session)
-  );
+  const isClient = useIsClient();
+  const session = useClientSession();
   const [bootError, setBootError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const hiddenLabRoute = isHiddenRoute(pathname);
-  const bootStartedRef = useRef(false);
   const usageLoggedRef = useRef(false);
 
   useEffect(() => {
-    if (bootStartedRef.current) return;
-    bootStartedRef.current = true;
+    if (!isClient) return;
+
+    if (!session) {
+      router.replace("/login");
+      return;
+    }
+
+    if (sessionValidated) return;
+    sessionValidated = true;
 
     let cancelled = false;
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => {
+        reject(
+          new ApiError(
+            "Backend svarte ikke i tide. Sjekk at FastAPI kjører på port 8000.",
+            0
+          )
+        );
+      }, BOOT_TIMEOUT_MS);
+    });
 
-    async function boot() {
-      const currentSession = getSession();
-      if (!currentSession) {
-        setBootState("redirecting");
-        router.replace("/login");
-        return;
-      }
-
-      const timeout = new Promise<never>((_, reject) => {
-        window.setTimeout(() => {
-          reject(
-            new ApiError(
-              "Backend svarte ikke i tide. Sjekk at FastAPI kjører på port 8000.",
-              0
-            )
-          );
-        }, BOOT_TIMEOUT_MS);
-      });
-
-      try {
-        const me = await Promise.race([fetchMe(), timeout]);
+    Promise.race([fetchMe(), timeout])
+      .then(() => {
         if (cancelled) return;
-        setDisplayName(me.display_name ?? me.email);
-        setBootState("ready");
+        setBootError(null);
         if (!usageLoggedRef.current) {
           usageLoggedRef.current = true;
           recordAppOpen().catch(() => undefined);
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         if (cancelled) return;
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           logout();
-          setBootState("redirecting");
           router.replace("/login");
-          return;
-        }
-        // Keep shell visible if we already had a cached session — show inline error instead.
-        if (currentSession) {
-          setBootError(
-            err instanceof ApiError
-              ? err.message
-              : "Kunne ikke nå backend. Noen data kan være utdatert."
-          );
-          setBootState("ready");
           return;
         }
         setBootError(
           err instanceof ApiError
             ? err.message
-            : "Kunne ikke starte appen. Sjekk at backend kjører."
+            : "Kunne ikke nå backend. Noen data kan være utdatert."
         );
-        setBootState("error");
-      }
-    }
+      });
 
-    boot();
     return () => {
       cancelled = true;
     };
-    // Boot once per mount; optimistic "ready" state avoids flash on navigation remounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isClient, session, router]);
 
-  if (bootState === "redirecting") {
+  if (!isClient) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-muted">
+        Laster…
+      </div>
+    );
+  }
+
+  if (!session) {
     return (
       <div className="flex min-h-dvh items-center justify-center text-muted">
         Omdirigerer…
@@ -111,40 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (bootState === "error") {
-    return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-red-400">{bootError}</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-xl border border-border px-4 py-2 text-sm"
-          >
-            Prøv igjen
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              logout();
-              router.replace("/login");
-            }}
-            className="rounded-xl bg-accent px-4 py-2 text-sm text-white"
-          >
-            Logg inn på nytt
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (bootState !== "ready") {
-    return (
-      <div className="flex min-h-dvh items-center justify-center text-muted">
-        Laster…
-      </div>
-    );
-  }
+  const displayName = session.display_name ?? session.email;
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[260px_1fr]">

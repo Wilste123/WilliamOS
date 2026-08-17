@@ -9,6 +9,12 @@ export type AuthSession = {
 };
 
 const STORAGE_KEY = "williamos_session";
+const SESSION_CHANGE_EVENT = "williamos-session-change";
+
+function notifySessionChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
+}
 
 export function getSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
@@ -23,10 +29,12 @@ export function getSession(): AuthSession | null {
 
 export function saveSession(session: AuthSession): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  notifySessionChange();
 }
 
 export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
+  notifySessionChange();
 }
 
 export function logout(): void {
