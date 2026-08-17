@@ -2,26 +2,43 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { applyInboxSuggestion, captureInbox, fetchInbox } from "@/lib/api";
+import { applyInboxSuggestion, captureInbox, dismissInboxItem, fetchInbox } from "@/lib/api";
 
 const OBJECT_LABELS: Record<string, string> = {
   asset: "Eiendel",
   task: "Oppgave",
   decision: "Beslutning",
   project: "Prosjekt",
+  document: "Dokument",
 };
 
 function suggestionLabel(suggestion: Record<string, unknown>): string {
   const objectType = String(suggestion.object_type ?? "unknown");
   const fields = (suggestion.fields as Record<string, unknown>) ?? {};
+
+  if (objectType === "document") {
+    return String(fields.message ?? fields.label ?? "Dokumentforslag");
+  }
+
   const name = fields.name ?? fields.title ?? objectType;
   return `${OBJECT_LABELS[objectType] ?? objectType}: ${name}`;
+}
+
+function suggestionActionLabel(suggestion: Record<string, unknown>): string {
+  const objectType = String(suggestion.object_type ?? "unknown");
+  if (objectType === "document") {
+    const fields = (suggestion.fields as Record<string, unknown>) ?? {};
+    return String(fields.label ?? "Godta");
+  }
+  return "Opprett";
 }
 
 type InboxItem = Record<string, unknown> & {
   id: string;
   text?: string;
   status?: string;
+  signal_type?: string;
+  doc_type?: string;
   suggestions?: Record<string, unknown>[];
 };
 
@@ -30,6 +47,7 @@ export default function InboxPage() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
 
   async function load() {
     const data = await fetchInbox();
@@ -66,7 +84,17 @@ export default function InboxPage() {
     }
   }
 
-  const pending = items.filter((item) => item.status !== "processed");
+  async function handleDismiss(itemId: string) {
+    setDismissingId(itemId);
+    try {
+      await dismissInboxItem(itemId);
+      await load();
+    } finally {
+      setDismissingId(null);
+    }
+  }
+
+  const pending = items.filter((item) => !["processed", "ignored"].includes(String(item.status ?? "")));
 
   return (
     <div className="space-y-4">
@@ -94,10 +122,25 @@ export default function InboxPage() {
       <div className="space-y-3">
         {pending.map((item) => {
           const suggestions = item.suggestions ?? [];
+          const isDocument = item.signal_type === "document";
           return (
             <article key={String(item.id)} className="rounded-2xl border border-border bg-zinc-950/40 p-4">
-              <p className="text-sm font-medium">{String(item.text ?? "Uten tekst")}</p>
-              <p className="mt-1 text-xs text-muted capitalize">Status: {item.status ?? "captured"}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{String(item.text ?? "Uten tekst")}</p>
+                  <p className="mt-1 text-xs text-muted capitalize">
+                    {isDocument ? `Dokument · ${item.doc_type ?? "fil"}` : `Status: ${item.status ?? "captured"}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={dismissingId === String(item.id)}
+                  onClick={() => handleDismiss(String(item.id))}
+                  className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs text-muted disabled:opacity-60"
+                >
+                  Ignorer
+                </button>
+              </div>
 
               {suggestions.length > 0 ? (
                 <div className="mt-4 space-y-2">
@@ -114,7 +157,7 @@ export default function InboxPage() {
                         onClick={() => handleApply(String(item.id), index)}
                         className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                       >
-                        Opprett
+                        {suggestionActionLabel(suggestion)}
                       </button>
                     </div>
                   ))}

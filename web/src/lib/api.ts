@@ -262,6 +262,12 @@ export async function applyInboxSuggestion(inboxId: string, suggestionIndex: num
   );
 }
 
+export async function dismissInboxItem(inboxId: string) {
+  return request<{ inbox_status: string }>(`/inbox/${inboxId}/dismiss`, {
+    method: "POST",
+  });
+}
+
 export async function fetchDashboard() {
   return request<DashboardSummary>("/dashboard");
 }

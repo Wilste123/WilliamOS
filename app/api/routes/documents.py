@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, 
 from pydantic import BaseModel
 
 from app.api.deps import get_current_user
-from app.services.action_engine import create_document, create_task, update_asset
+from app.services.action_engine import capture_document_inbox_signal, create_document, apply_document_suggestion_action
 from app.services.document_intelligence import analyze_uploaded_document
 from app.services.document_storage import save_uploaded_file
 from app.services.retrieval_service import search_documents
-from app.services.storage_service import list_records, update_record
+from app.services.storage_service import list_records
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -49,10 +49,12 @@ async def upload_document(
             "source_module": selected_source_module,
         }
     )
+    inbox_signal = capture_document_inbox_signal(document, intelligence)
     return {
         "saved": True,
         **document,
         "intelligence": intelligence,
+        "inbox_signal": inbox_signal,
     }
 
 
@@ -65,34 +67,10 @@ def apply_document_suggestion(document_id: str, request: DocumentSuggestionApply
     suggestion_id = request.suggestion_id
     payload = request.payload or {}
 
-    if suggestion_id == "link_asset":
-        asset_id = payload.get("asset_id")
-        if not asset_id:
-            raise HTTPException(status_code=400, detail="asset_id required")
-        updated = update_record("documents", document_id, {"asset_id": asset_id})
-        return {"applied": True, "document": updated, "action": "link_asset"}
-
-    if suggestion_id == "update_insurance":
-        asset_id = payload.get("asset_id")
-        if not asset_id:
-            raise HTTPException(status_code=400, detail="asset_id required")
-        note = f"Forsikring oppdatert via dokument: {document.get('filename')}"
-        asset = update_asset(asset_id, {"description": note})
-        update_record("documents", document_id, {"asset_id": asset_id})
-        return {"applied": True, "asset": asset, "action": "update_insurance"}
-
-    if suggestion_id == "create_service_task":
-        task = create_task(
-            {
-                "title": payload.get("title") or f"Service: {document.get('filename')}",
-                "asset_id": payload.get("asset_id") or document.get("asset_id"),
-                "priority": payload.get("priority", 2),
-                "status": "open",
-            }
-        )
-        return {"applied": True, "task": task, "action": "create_service_task"}
-
-    raise HTTPException(status_code=400, detail="Unknown suggestion")
+    try:
+        return apply_document_suggestion_action(document_id, suggestion_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/search")

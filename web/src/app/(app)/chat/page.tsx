@@ -106,6 +106,7 @@ function ChatPageInner() {
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
+  const sendMessageRef = useRef<(userMessage: string) => Promise<void>>(async () => {});
 
   useEffect(() => {
     fetchChatHistory()
@@ -130,13 +131,6 @@ function ChatPageInner() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, phase]);
-
-  useEffect(() => {
-    const prompt = searchParams.get("prompt");
-    if (!prompt || bootstrapped.current) return;
-    bootstrapped.current = true;
-    setInput(prompt);
-  }, [searchParams]);
 
   async function sendMessage(userMessage: string) {
     if (!userMessage.trim() || loading) return;
@@ -213,6 +207,21 @@ function ChatPageInner() {
       setStreaming(false);
     }
   }
+
+  sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    const shouldSend = searchParams.get("send") === "1";
+    if (!prompt || bootstrapped.current) return;
+    bootstrapped.current = true;
+    if (shouldSend) {
+      router.replace("/chat");
+      void sendMessageRef.current(prompt);
+      return;
+    }
+    setInput(prompt);
+  }, [searchParams, router]);
 
   function markActionDone(messageIndex: number, actionId: string, note: string) {
     setMessages((current) =>

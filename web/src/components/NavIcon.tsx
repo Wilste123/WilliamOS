@@ -1,6 +1,8 @@
 import {
   Brain,
   CheckSquare,
+  Goal,
+  History,
   Home,
   Inbox,
   MessageCircle,
@@ -17,6 +19,8 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   inbox: Inbox,
   tasks: CheckSquare,
   assets: Package,
+  goals: Goal,
+  timeline: History,
   memory: Brain,
   settings: Settings,
 };

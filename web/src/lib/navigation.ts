@@ -1,4 +1,13 @@
-export type NavIconName = "home" | "chat" | "inbox" | "tasks" | "assets" | "memory" | "settings";
+export type NavIconName =
+  | "home"
+  | "chat"
+  | "inbox"
+  | "tasks"
+  | "assets"
+  | "memory"
+  | "settings"
+  | "goals"
+  | "timeline";
 
 export type NavItem = {
   href: string;
@@ -19,6 +28,8 @@ export const MVP_PRIMARY_NAV: NavItem[] = [
 
 export const MVP_SECONDARY_NAV: NavItem[] = [
   { href: "/assets", label: "Eiendeler", icon: "assets" },
+  { href: "/goals", label: "Mål", icon: "goals" },
+  { href: "/timeline", label: "Timeline", icon: "timeline" },
   { href: "/memory", label: "Minne", icon: "memory" },
   { href: "/settings", label: "Innstillinger", icon: "settings" },
 ];

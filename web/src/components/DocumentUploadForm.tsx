@@ -91,6 +91,7 @@ export function DocumentUploadForm({ assetId, projectId, onUploaded }: DocumentU
       {suggestions.length > 0 && (
         <div className="space-y-2 rounded-xl border border-border/70 bg-zinc-900/40 p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Forslag fra dokumentanalyse</p>
+          <p className="text-xs text-muted">Sjekk også Inbox for samme forslag.</p>
           {suggestions.map((suggestion) => (
             <div key={suggestion.id} className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm">{suggestion.message}</p>

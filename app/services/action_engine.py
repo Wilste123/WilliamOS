@@ -346,6 +346,103 @@ def capture_inbox_entry(text: str) -> dict:
     return inbox_item
 
 
+def capture_document_inbox_signal(document: dict, intelligence: dict) -> dict | None:
+    """Route uploaded document intelligence into Inbox — WilliamOS command center."""
+    suggestions = intelligence.get("suggestions") or []
+    if not suggestions:
+        return None
+
+    filename = document.get("filename") or "dokument"
+    doc_type = intelligence.get("doc_type") or "other"
+    primary_message = suggestions[0].get("message") or f"Nytt dokument: {filename}"
+
+    inbox_suggestions = [
+        {
+            "object_type": "document",
+            "fields": {
+                "suggestion_id": item.get("id"),
+                "label": item.get("label"),
+                "message": item.get("message"),
+                "document_id": document.get("id"),
+                "payload": item.get("payload") or {},
+            },
+        }
+        for item in suggestions
+        if isinstance(item, dict)
+    ]
+
+    inbox_item = create_record(
+        "inbox_items",
+        {
+            "text": primary_message,
+            "suggestions": inbox_suggestions,
+            "status": "captured",
+            "signal_type": "document",
+            "document_id": document.get("id"),
+            "doc_type": doc_type,
+            "visibility": "private",
+        },
+    )
+    append_event(
+        title=f"Dokumentsignal: {filename}",
+        event_type="document_inbox_signal",
+        notes=f"{doc_type} · {len(inbox_suggestions)} forslag",
+        visibility="private",
+    )
+    return inbox_item
+
+
+def dismiss_inbox_item(inbox_id: str) -> dict:
+    """Mark an inbox item as ignored/processed without applying suggestions."""
+    inbox_item = get_record("inbox_items", inbox_id)
+    if not inbox_item:
+        raise ValueError("Inbox-element ikke funnet")
+    updated = update_record("inbox_items", inbox_id, {"status": "ignored", "suggestions": []})
+    append_event(
+        title=f"Inbox ignorert: {(inbox_item.get('text') or '')[:60]}",
+        event_type="inbox_dismissed",
+        visibility="private",
+    )
+    return {"inbox_status": "ignored", "item": updated}
+
+
+def apply_document_suggestion_action(document_id: str, suggestion_id: str, payload: dict | None = None) -> dict:
+    """Execute a document intelligence suggestion (link asset, update insurance, create task)."""
+    payload = payload or {}
+    document = get_record("documents", document_id)
+    if not document:
+        raise ValueError("Dokument ikke funnet")
+
+    if suggestion_id == "link_asset":
+        asset_id = payload.get("asset_id")
+        if not asset_id:
+            raise ValueError("asset_id required")
+        updated = update_record("documents", document_id, {"asset_id": asset_id})
+        return {"applied": True, "document": updated, "action": "link_asset"}
+
+    if suggestion_id == "update_insurance":
+        asset_id = payload.get("asset_id")
+        if not asset_id:
+            raise ValueError("asset_id required")
+        note = f"Forsikring oppdatert via dokument: {document.get('filename')}"
+        asset = update_asset(asset_id, {"description": note})
+        update_record("documents", document_id, {"asset_id": asset_id})
+        return {"applied": True, "asset": asset, "action": "update_insurance"}
+
+    if suggestion_id == "create_service_task":
+        task = create_task(
+            {
+                "title": payload.get("title") or f"Service: {document.get('filename')}",
+                "asset_id": payload.get("asset_id") or document.get("asset_id"),
+                "priority": payload.get("priority", 2),
+                "status": "open",
+            }
+        )
+        return {"applied": True, "task": task, "action": "create_service_task"}
+
+    raise ValueError(f"Ukjent dokumentforslag: {suggestion_id}")
+
+
 _OBJECT_CREATORS = {
     "asset": create_asset,
     "task": create_task,
@@ -367,6 +464,27 @@ def apply_inbox_suggestion(inbox_id: str, suggestion_index: int) -> dict:
     suggestion = suggestions[suggestion_index]
     object_type = suggestion.get("object_type")
     fields = suggestion.get("fields") or {}
+
+    if object_type == "document":
+        document_id = fields.get("document_id") or inbox_item.get("document_id")
+        suggestion_id = fields.get("suggestion_id")
+        if not document_id or not suggestion_id:
+            raise ValueError("Dokumentforslag mangler document_id eller suggestion_id")
+        result = apply_document_suggestion_action(
+            str(document_id),
+            str(suggestion_id),
+            fields.get("payload") or {},
+        )
+        remaining = [s for i, s in enumerate(suggestions) if i != suggestion_index]
+        status = "processed" if not remaining else "partial"
+        update_record("inbox_items", inbox_id, {"suggestions": remaining, "status": status})
+        append_event(
+            title=f"Dokumentforslag brukt: {suggestion_id}",
+            event_type="inbox_suggestion_applied",
+            notes=str(result.get("action")),
+        )
+        return {"object_type": "document", "created": result, "inbox_status": status}
+
     creator = _OBJECT_CREATORS.get(object_type)
     if creator is None:
         raise ValueError(f"Ukjent objekttype: {object_type}")
@@ -671,7 +789,18 @@ def build_priority_engine(limit: int = 5) -> dict:
         )
 
     for inbox_item in list_records("inbox_items"):
-        if inbox_item.get("status") in {"processed"}:
+        if inbox_item.get("status") in {"processed", "ignored"}:
+            continue
+        if inbox_item.get("signal_type") == "document":
+            items.append(
+                _priority_item(
+                    source_type="inbox",
+                    title=(inbox_item.get("text") or "Dokumentsignal")[:80],
+                    score=70,
+                    reason="Ubehandlet dokumentsignal",
+                    record=inbox_item,
+                )
+            )
             continue
         suggestions = _normalize_suggestions(inbox_item.get("suggestions"))
         task_suggestions = [s for s in suggestions if s.get("object_type") == "task"]
