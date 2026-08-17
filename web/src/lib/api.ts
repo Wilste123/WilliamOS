@@ -2,6 +2,20 @@ import { clearSession, getSession, saveSession, type AuthSession } from "./auth"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function parseErrorDetail(payload: unknown): string {
+  if (!payload || typeof payload !== "object" || !("detail" in payload)) {
+    return "Forespørselen feilet";
+  }
+  const detail = (payload as { detail: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => (typeof item === "object" && item && "msg" in item ? String(item.msg) : "Ugyldig input"))
+      .join(", ");
+  }
+  return "Forespørselen feilet";
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -30,16 +44,27 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     nextHeaders.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...rest,
-    headers: nextHeaders,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...rest,
+      headers: nextHeaders,
+    });
+  } catch {
+    throw new ApiError(
+      `Kunne ikke nå API på ${API_URL}. Sjekk at FastAPI kjører (uvicorn app.api.main:app --reload --port 8000).`,
+      0
+    );
+  }
 
   const payload = await response.json().catch(() => ({}));
 
+  if (response.status === 202) {
+    throw new ApiError(parseErrorDetail(payload), 202);
+  }
+
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "Request failed";
-    throw new ApiError(detail, response.status);
+    throw new ApiError(parseErrorDetail(payload), response.status);
   }
 
   return payload as T;

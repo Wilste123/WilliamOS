@@ -4,6 +4,24 @@ from app.database.supabase import get_authenticated_client, get_supabase_anon, r
 from app.services.auth_context import UserContext
 
 
+def _raise_auth_error(exc: Exception) -> None:
+    """Convert Supabase auth exceptions into user-facing RuntimeErrors."""
+    message = str(getattr(exc, "message", None) or exc)
+    code = str(getattr(exc, "code", "") or "")
+
+    if code == "invalid_credentials" or "Invalid login credentials" in message:
+        raise RuntimeError("Ugyldig e-post eller passord.") from exc
+    if code == "email_not_confirmed" or "Email not confirmed" in message:
+        raise RuntimeError("Bekreft e-posten din før du logger inn.") from exc
+    if "already registered" in message.lower() or code == "user_already_exists":
+        raise RuntimeError("E-postadressen er allerede registrert.") from exc
+    if "403" in message or "Forbidden" in message:
+        raise RuntimeError(
+            "Supabase autentisering feilet. Sjekk SUPABASE_URL og SUPABASE_ANON_KEY i .env."
+        ) from exc
+    raise RuntimeError(f"Autentisering feilet: {message}") from exc
+
+
 def _build_context(
     session,
     user,
@@ -120,13 +138,16 @@ def sign_up(email: str, password: str, display_name: str, household_name: str) -
     if client is None:
         raise RuntimeError("Supabase er ikke konfigurert.")
 
-    auth_response = client.auth.sign_up(
-        {
-            "email": email.strip(),
-            "password": password,
-            "options": {"data": {"display_name": display_name.strip()}},
-        }
-    )
+    try:
+        auth_response = client.auth.sign_up(
+            {
+                "email": email.strip(),
+                "password": password,
+                "options": {"data": {"display_name": display_name.strip()}},
+            }
+        )
+    except Exception as exc:
+        _raise_auth_error(exc)
     if auth_response.user is None:
         raise RuntimeError("Kunne ikke opprette bruker.")
 
@@ -156,9 +177,12 @@ def sign_in(email: str, password: str) -> UserContext:
     if client is None:
         raise RuntimeError("Supabase er ikke konfigurert.")
 
-    auth_response = client.auth.sign_in_with_password(
-        {"email": email.strip(), "password": password}
-    )
+    try:
+        auth_response = client.auth.sign_in_with_password(
+            {"email": email.strip(), "password": password}
+        )
+    except Exception as exc:
+        _raise_auth_error(exc)
     if auth_response.session is None or auth_response.user is None:
         raise RuntimeError("Ugyldig e-post eller passord.")
 

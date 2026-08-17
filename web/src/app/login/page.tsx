@@ -34,7 +34,12 @@ export default function LoginPage() {
       }
       router.replace("/home");
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Noe gikk galt";
+      let message = "Noe gikk galt";
+      if (err instanceof ApiError) {
+        message = err.message;
+      } else if (err instanceof Error && err.message) {
+        message = err.message;
+      }
       setError(message);
     } finally {
       setLoading(false);
