@@ -1,7 +1,9 @@
+export type NavIconName = "home" | "chat" | "inbox" | "tasks" | "assets" | "settings";
+
 export type NavItem = {
   href: string;
   label: string;
-  icon?: string;
+  icon: NavIconName;
 };
 
 /**
@@ -9,19 +11,19 @@ export type NavItem = {
  * Hidden modules still exist at their routes (for dev) but are not linked in UI.
  */
 export const MVP_PRIMARY_NAV: NavItem[] = [
-  { href: "/home", label: "Hjem", icon: "🏠" },
-  { href: "/chat", label: "Chat", icon: "💬" },
-  { href: "/inbox", label: "Inbox", icon: "📥" },
-  { href: "/tasks", label: "Oppgaver", icon: "✓" },
+  { href: "/home", label: "Hjem", icon: "home" },
+  { href: "/chat", label: "Chat", icon: "chat" },
+  { href: "/inbox", label: "Inbox", icon: "inbox" },
+  { href: "/tasks", label: "Oppgaver", icon: "tasks" },
 ];
 
 export const MVP_SECONDARY_NAV: NavItem[] = [
-  { href: "/assets", label: "Eiendeler", icon: "📦" },
-  { href: "/settings", label: "Innstillinger", icon: "⚙️" },
+  { href: "/assets", label: "Eiendeler", icon: "assets" },
+  { href: "/settings", label: "Innstillinger", icon: "settings" },
 ];
 
 /** Lab / later modules — hidden from nav during MVP testing */
-export const MVP_HIDDEN_NAV: NavItem[] = [
+export const MVP_HIDDEN_NAV: Omit<NavItem, "icon">[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/projects", label: "Prosjekter" },
   { href: "/decisions", label: "Beslutninger" },
@@ -33,7 +35,7 @@ export const MVP_HIDDEN_NAV: NavItem[] = [
 ];
 
 /** @deprecated Use MVP_PRIMARY_NAV + MVP_SECONDARY_NAV */
-export const NAV_ITEMS: NavItem[] = [...MVP_PRIMARY_NAV, ...MVP_SECONDARY_NAV, ...MVP_HIDDEN_NAV];
+export const NAV_ITEMS: NavItem[] = [...MVP_PRIMARY_NAV, ...MVP_SECONDARY_NAV];
 
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === "/home") return pathname === "/home";
@@ -43,3 +45,5 @@ export function isNavActive(pathname: string, href: string): boolean {
 export function isHiddenRoute(pathname: string): boolean {
   return MVP_HIDDEN_NAV.some((item) => isNavActive(pathname, item.href));
 }
+
+export const APP_NAME = "Mini-jarv";

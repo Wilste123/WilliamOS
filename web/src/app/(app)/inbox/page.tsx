@@ -2,16 +2,38 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { captureInbox, fetchInbox } from "@/lib/api";
+import { applyInboxSuggestion, captureInbox, fetchInbox } from "@/lib/api";
+
+const OBJECT_LABELS: Record<string, string> = {
+  asset: "Eiendel",
+  task: "Oppgave",
+  decision: "Beslutning",
+  project: "Prosjekt",
+};
+
+function suggestionLabel(suggestion: Record<string, unknown>): string {
+  const objectType = String(suggestion.object_type ?? "unknown");
+  const fields = (suggestion.fields as Record<string, unknown>) ?? {};
+  const name = fields.name ?? fields.title ?? objectType;
+  return `${OBJECT_LABELS[objectType] ?? objectType}: ${name}`;
+}
+
+type InboxItem = Record<string, unknown> & {
+  id: string;
+  text?: string;
+  status?: string;
+  suggestions?: Record<string, unknown>[];
+};
 
 export default function InboxPage() {
-  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [items, setItems] = useState<InboxItem[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [applyingKey, setApplyingKey] = useState<string | null>(null);
 
   async function load() {
     const data = await fetchInbox();
-    setItems(data as Record<string, unknown>[]);
+    setItems(data as InboxItem[]);
   }
 
   useEffect(() => {
@@ -31,11 +53,24 @@ export default function InboxPage() {
     }
   }
 
+  async function handleApply(itemId: string, index: number) {
+    const key = `${itemId}:${index}`;
+    setApplyingKey(key);
+    try {
+      await applyInboxSuggestion(itemId, index);
+      await load();
+    } finally {
+      setApplyingKey(null);
+    }
+  }
+
+  const pending = items.filter((item) => item.status !== "processed");
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-sm text-muted">Fang opp ting du vil følge opp senere.</p>
+        <p className="text-sm text-muted">Fang opp ting — assistenten foreslår neste steg.</p>
       </div>
 
       <form onSubmit={onSubmit} className="flex gap-2">
@@ -48,19 +83,47 @@ export default function InboxPage() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl border border-border px-4 py-3"
+          className="rounded-xl bg-accent px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
         >
           Legg til
         </button>
       </form>
 
       <div className="space-y-3">
-        {items.map((item) => (
-          <article key={String(item.id)} className="rounded-2xl border border-border p-4">
-            <p className="text-sm">{String(item.text ?? item.title ?? "Uten tekst")}</p>
-          </article>
-        ))}
-        {items.length === 0 && <p className="text-sm text-muted">Inbox er tom.</p>}
+        {pending.map((item) => {
+          const suggestions = item.suggestions ?? [];
+          return (
+            <article key={String(item.id)} className="rounded-2xl border border-border bg-zinc-950/40 p-4">
+              <p className="text-sm font-medium">{String(item.text ?? "Uten tekst")}</p>
+              <p className="mt-1 text-xs text-muted capitalize">Status: {item.status ?? "captured"}</p>
+
+              {suggestions.length > 0 ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-muted">Forslag</p>
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={`${item.id}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
+                    >
+                      <span className="text-sm">{suggestionLabel(suggestion)}</span>
+                      <button
+                        type="button"
+                        disabled={applyingKey === `${item.id}:${index}`}
+                        onClick={() => handleApply(String(item.id), index)}
+                        className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                      >
+                        Opprett
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted">Ingen forslag for dette signalet.</p>
+              )}
+            </article>
+          );
+        })}
+        {pending.length === 0 && <p className="text-sm text-muted">Inbox er tom.</p>}
       </div>
     </div>
   );

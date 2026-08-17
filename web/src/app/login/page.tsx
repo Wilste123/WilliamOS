@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { ApiError, login, signup } from "@/lib/api";
+import { APP_NAME } from "@/lib/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh flex-col justify-center px-4">
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">WilliamOS</h1>
+          <h1 className="text-2xl font-semibold">{APP_NAME}</h1>
           <p className="text-sm text-muted">Din personlige Chief of Staff</p>
         </div>
 

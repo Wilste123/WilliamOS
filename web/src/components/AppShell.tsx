@@ -7,7 +7,7 @@ import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
 import { fetchMe } from "@/lib/api";
 import { getSession, logout } from "@/lib/auth";
-import { isHiddenRoute } from "@/lib/navigation";
+import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden border-r border-border bg-zinc-950/40 lg:block">
         <div className="sticky top-0 flex h-dvh flex-col p-4">
           <div className="mb-4 px-3">
-            <p className="text-sm text-muted">WilliamOS</p>
+            <p className="text-sm text-muted">{APP_NAME}</p>
             <p className="font-medium">{displayName}</p>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Meny
             </button>
             <div className="min-w-0 flex-1 text-right">
-              <p className="truncate text-sm text-muted">WilliamOS</p>
+              <p className="truncate text-sm text-muted">{APP_NAME}</p>
               <p className="truncate font-medium">{displayName}</p>
             </div>
             <button

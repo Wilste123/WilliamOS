@@ -69,3 +69,24 @@ def test_dashboard_with_auth(authed_client, monkeypatch):
     response = authed_client.get("/dashboard")
     assert response.status_code == 200
     assert "priorities" in response.json()
+
+
+def test_inbox_apply_requires_auth(client):
+    response = client.post("/inbox/test-id/apply", json={"suggestion_index": 0})
+    assert response.status_code == 401
+
+
+def test_inbox_apply_with_auth(authed_client, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.routes.inbox.apply_inbox_suggestion",
+        lambda inbox_id, suggestion_index: {
+            "object_type": "task",
+            "created": {"id": "task-1", "title": "Test"},
+            "inbox_status": "processed",
+        },
+    )
+    response = authed_client.post("/inbox/inbox-1/apply", json={"suggestion_index": 0})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["object_type"] == "task"
+    assert body["created"]["title"] == "Test"

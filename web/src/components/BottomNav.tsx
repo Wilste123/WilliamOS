@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CheckSquare, Menu } from "lucide-react";
 
+import { NavIcon } from "@/components/NavIcon";
 import { isNavActive, MVP_PRIMARY_NAV } from "@/lib/navigation";
 
 type BottomNavProps = {
@@ -22,30 +24,30 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
             <Link
               key={link.href}
               href={link.href}
-              className={`flex min-h-11 min-w-14 flex-col items-center justify-center rounded-xl px-2 py-1 text-[11px] ${
+              className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px] ${
                 active ? "text-accent" : "text-muted"
               }`}
             >
-              <span className="text-lg">{link.icon}</span>
+              <NavIcon name={link.icon} className="h-5 w-5" />
               <span>{link.label}</span>
             </Link>
           );
         })}
         <Link
           href="/tasks"
-          className={`flex min-h-11 min-w-14 flex-col items-center justify-center rounded-xl px-2 py-1 text-[11px] ${
+          className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px] ${
             isNavActive(pathname, "/tasks") ? "text-accent" : "text-muted"
           }`}
         >
-          <span className="text-lg">✓</span>
+          <CheckSquare className="h-5 w-5" />
           <span>Oppgaver</span>
         </Link>
         <button
           type="button"
           onClick={onOpenMenu}
-          className="flex min-h-11 min-w-14 flex-col items-center justify-center rounded-xl px-2 py-1 text-[11px] text-muted"
+          className="flex min-h-11 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px] text-muted"
         >
-          <span className="text-lg">☰</span>
+          <Menu className="h-5 w-5" />
           <span>Mer</span>
         </button>
       </div>

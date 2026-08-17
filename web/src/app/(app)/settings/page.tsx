@@ -3,13 +3,14 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { fetchMe, updateAssistantName } from "@/lib/api";
+import { APP_NAME } from "@/lib/navigation";
 
 export default function SettingsPage() {
-  const [assistantName, setAssistantName] = useState("WilliamOS");
+  const [assistantName, setAssistantName] = useState(APP_NAME);
   const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMe().then((me) => setAssistantName(me.assistant_name ?? "WilliamOS"));
+    fetchMe().then((me) => setAssistantName(me.assistant_name ?? APP_NAME));
   }, []);
 
   async function onSubmit(event: FormEvent) {

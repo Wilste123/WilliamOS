@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { fetchHome } from "@/lib/api";
+import { fetchHome, fetchWeeklyBrief, type WeeklyBrief } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import { getTimeGreeting, type HomeSummary } from "@/lib/home";
 
 function StatCard({
@@ -52,15 +53,33 @@ function HomeSkeleton() {
 
 export default function HomePage() {
   const [summary, setSummary] = useState<HomeSummary | null>(null);
+  const [brief, setBrief] = useState<WeeklyBrief | null>(null);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchHome()
-      .then(setSummary)
-      .catch(() => setError(true));
+  const load = useCallback(async () => {
+    const [home, weekly] = await Promise.all([fetchHome(), fetchWeeklyBrief()]);
+    setSummary(home);
+    setBrief(weekly);
+    setError(false);
   }, []);
 
-  if (error) {
+  useEffect(() => {
+    load().catch(() => setError(true));
+  }, [load]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await load();
+    } catch {
+      setError(true);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  if (error && !summary) {
     return <p className="text-sm text-muted">Kunne ikke laste startsiden.</p>;
   }
 
@@ -72,11 +91,21 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1 pt-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {getTimeGreeting(summary.greeting_name)}
-        </h1>
-        <p className="text-sm text-muted">Her er dagen din i korthet.</p>
+      <header className="flex items-start justify-between gap-3 pt-2">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {getTimeGreeting(summary.greeting_name)}
+          </h1>
+          <p className="text-sm text-muted">Her er dagen din i korthet.</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="rounded-lg border border-border px-3 py-2 text-xs text-muted disabled:opacity-60"
+        >
+          {refreshing ? "Oppdaterer…" : "Oppdater"}
+        </button>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
@@ -93,24 +122,50 @@ export default function HomePage() {
           hint={summary.open_tasks === 0 ? "Opprett en oppgave" : undefined}
           href={summary.open_tasks === 0 ? "/tasks" : undefined}
         />
-        <StatCard
-          label="Prosjekter"
-          value={`${summary.metrics?.projects ?? 0} aktive`}
-        />
+        <StatCard label="Prosjekter" value={`${summary.metrics?.projects ?? 0} aktive`} />
       </div>
 
       <section className="rounded-2xl border border-border p-4">
-        <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">
-          Prioriteringer
-        </h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">Ukens brief</h2>
+          <Link
+            href={`/chat?prompt=${encodeURIComponent("Hva bør jeg gjøre denne uka?")}`}
+            className="text-xs text-accent"
+          >
+            Spør i chat
+          </Link>
+        </div>
+        {brief?.priorities && brief.priorities.length > 0 ? (
+          <ul className="space-y-2">
+            {brief.priorities.slice(0, 3).map((task) => (
+              <li key={String(task.id ?? task.title)} className="rounded-xl bg-zinc-900/60 px-3 py-2 text-sm">
+                {String(task.title)}
+                {task.due_date ? (
+                  <span className="ml-2 text-xs text-muted">· {formatDate(task.due_date)}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">{brief?.summary_text?.split("\n")[1] ?? "Ingen presserende ting akkurat nå."}</p>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-border p-4">
+        <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-muted">Prioriteringer</h2>
         {summary.priorities.length > 0 ? (
           <ol className="space-y-3">
             {summary.priorities.map((title, index) => (
-              <li key={title} className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-medium text-accent">
-                  {index + 1}
-                </span>
-                <span className="pt-0.5 text-base">{title}</span>
+              <li key={title}>
+                <Link
+                  href={`/chat?prompt=${encodeURIComponent(`Hjelp meg med: ${title}`)}`}
+                  className="flex items-start gap-3 rounded-xl px-1 py-1 transition hover:bg-zinc-900/50"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-medium text-accent">
+                    {index + 1}
+                  </span>
+                  <span className="pt-0.5 text-base">{title}</span>
+                </Link>
               </li>
             ))}
           </ol>

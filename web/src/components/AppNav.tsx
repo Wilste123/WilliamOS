@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 
+import { NavIcon } from "@/components/NavIcon";
 import {
+  APP_NAME,
   isNavActive,
   MVP_PRIMARY_NAV,
   MVP_SECONDARY_NAV,
+  type NavItem,
 } from "@/lib/navigation";
 
 type AppNavProps = {
@@ -19,7 +23,7 @@ function NavLink({
   active,
   onNavigate,
 }: {
-  item: { href: string; label: string; icon?: string };
+  item: NavItem;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -31,13 +35,7 @@ function NavLink({
         active ? "bg-accent/15 font-medium text-accent" : "text-foreground hover:bg-zinc-900"
       }`}
     >
-      <span
-        className={`flex h-6 w-6 items-center justify-center text-base ${
-          item.icon ? "" : "rounded-full border " + (active ? "border-accent bg-accent" : "border-muted")
-        }`}
-      >
-        {item.icon ?? null}
-      </span>
+      <NavIcon name={item.icon} />
       {item.label}
     </Link>
   );
@@ -89,7 +87,7 @@ export function AppNav({ onNavigate }: AppNavProps) {
       </div>
 
       <p className="px-3 text-xs text-muted">
-        MVP-test: Dashboard, prosjekter, dokumenter m.m. er skjult. Bruk Streamlit-lab for full moduliste.
+        {APP_NAME} MVP — lab-moduler er skjult. Bruk Streamlit for full moduliste.
       </p>
     </nav>
   );

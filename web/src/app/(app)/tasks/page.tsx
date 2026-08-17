@@ -3,20 +3,18 @@
 import { useState } from "react";
 
 import { CreateRecordForm } from "@/components/CreateRecordForm";
-import { RecordListPage } from "@/components/RecordListPage";
+import { TaskList } from "@/components/TaskList";
 
 export default function TasksPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
-    <RecordListPage
-      title="Oppgaver"
-      description="Alle oppgaver i systemet."
-      path="/tasks"
-      fields={["title", "priority", "due_date", "status"]}
-      emptyLabel="Ingen oppgaver ennå. Opprett den første over."
-      refreshKey={refreshKey}
-    >
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold">Oppgaver</h1>
+        <p className="text-sm text-muted">Opprett, fullfør og rediger oppgaver.</p>
+      </div>
+
       <CreateRecordForm
         path="/tasks"
         submitLabel="Opprett oppgave"
@@ -26,6 +24,11 @@ export default function TasksPage() {
         ]}
         onCreated={() => setRefreshKey((key) => key + 1)}
       />
-    </RecordListPage>
+
+      <TaskList
+        refreshKey={refreshKey}
+        emptyLabel="Ingen oppgaver ennå. Opprett den første over."
+      />
+    </div>
   );
 }

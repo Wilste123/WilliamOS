@@ -202,6 +202,35 @@ export async function createRecord(path: string, body: Record<string, unknown>) 
   });
 }
 
+export async function patchRecord(path: string, body: Record<string, unknown>) {
+  return request<Record<string, unknown>>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function completeTask(taskId: string) {
+  return patchRecord(`/tasks/${taskId}`, { completed: true, status: "completed" });
+}
+
+export async function updateTask(taskId: string, body: Record<string, unknown>) {
+  return patchRecord(`/tasks/${taskId}`, body);
+}
+
+export async function updateAsset(assetId: string, body: Record<string, unknown>) {
+  return patchRecord(`/assets/${assetId}`, body);
+}
+
+export async function applyInboxSuggestion(inboxId: string, suggestionIndex: number) {
+  return request<{ object_type: string; created: Record<string, unknown>; inbox_status: string }>(
+    `/inbox/${inboxId}/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify({ suggestion_index: suggestionIndex }),
+    }
+  );
+}
+
 export async function fetchDashboard() {
   return request<DashboardSummary>("/dashboard");
 }
@@ -222,8 +251,17 @@ export type DashboardSummary = {
 };
 
 export async function fetchWeeklyBrief() {
-  return request<{ summary_text: string }>("/weekly-brief");
+  return request<WeeklyBrief>("/weekly-brief");
 }
+
+export type WeeklyBrief = {
+  summary_text: string;
+  priorities?: Record<string, unknown>[];
+  active_projects?: Record<string, unknown>[];
+  open_decisions?: Record<string, unknown>[];
+  upcoming_events?: Record<string, unknown>[];
+  metrics?: Record<string, number>;
+};
 
 export async function fetchTimeline() {
   return request<Record<string, unknown>[]>("/timeline");
