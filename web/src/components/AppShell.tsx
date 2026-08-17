@@ -5,38 +5,110 @@ import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
-import { fetchMe, recordAppOpen } from "@/lib/api";
+import { ApiError, fetchMe, recordAppOpen } from "@/lib/api";
 import { getSession, logout } from "@/lib/auth";
 import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
+
+const BOOT_TIMEOUT_MS = 12_000;
+
+type BootState = "loading" | "ready" | "redirecting" | "error";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const [bootState, setBootState] = useState<BootState>("loading");
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [bootError, setBootError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const hiddenLabRoute = isHiddenRoute(pathname);
 
   useEffect(() => {
-    const session = getSession();
-    if (!session) {
-      router.replace("/login");
-      return;
+    let cancelled = false;
+
+    async function boot() {
+      const session = getSession();
+      if (!session) {
+        setBootState("redirecting");
+        router.replace("/login");
+        return;
+      }
+
+      const timeout = new Promise<never>((_, reject) => {
+        window.setTimeout(() => {
+          reject(
+            new ApiError(
+              "Backend svarte ikke i tide. Sjekk at FastAPI kjører på port 8000.",
+              0
+            )
+          );
+        }, BOOT_TIMEOUT_MS);
+      });
+
+      try {
+        const me = await Promise.race([fetchMe(), timeout]);
+        if (cancelled) return;
+        setDisplayName(me.display_name ?? me.email);
+        setBootState("ready");
+        recordAppOpen().catch(() => undefined);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          logout();
+          setBootState("redirecting");
+          router.replace("/login");
+          return;
+        }
+        setBootError(
+          err instanceof ApiError
+            ? err.message
+            : "Kunne ikke starte appen. Sjekk at backend kjører."
+        );
+        setBootState("error");
+      }
     }
 
-    fetchMe()
-      .then((me) => {
-        setDisplayName(me.display_name ?? me.email);
-        setReady(true);
-        recordAppOpen().catch(() => undefined);
-      })
-      .catch(() => {
-        logout();
-        router.replace("/login");
-      });
+    boot();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
-  if (!ready) {
+  if (bootState === "redirecting") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-muted">
+        Omdirigerer…
+      </div>
+    );
+  }
+
+  if (bootState === "error") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-red-400">{bootError}</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl border border-border px-4 py-2 text-sm"
+          >
+            Prøv igjen
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              router.replace("/login");
+            }}
+            className="rounded-xl bg-accent px-4 py-2 text-sm text-white"
+          >
+            Logg inn på nytt
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootState !== "ready") {
     return (
       <div className="flex min-h-dvh items-center justify-center text-muted">
         Laster…
