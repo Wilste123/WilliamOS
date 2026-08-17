@@ -1,4 +1,5 @@
 -- Goals table for Priority Engine and Minne-adjacent UI
+-- Prerequisite: migrations/2026-08-16_auth_households.sql (households + RLS helpers)
 -- Idempotent: safe to run multiple times.
 
 create table if not exists goals (

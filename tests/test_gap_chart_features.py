@@ -115,6 +115,18 @@ class TestPriorityEngine:
         assert "goal" in source_types
         assert "inbox" in source_types
 
+    def test_malformed_inbox_suggestions_do_not_crash(self, monkeypatch):
+        import app.services.action_engine as ae
+
+        def fake_list(collection):
+            if collection == "inbox_items":
+                return [{"id": "1", "status": "captured", "text": "Må service bil", "suggestions": "bad"}]
+            return []
+
+        monkeypatch.setattr(ae, "list_records", fake_list)
+        engine = ae.build_priority_engine()
+        assert engine["items"] == []
+
 
 class TestDocumentIntelligence:
     def test_classifies_insurance(self):

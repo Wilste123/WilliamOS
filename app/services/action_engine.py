@@ -9,6 +9,20 @@ from app.services.storage_service import append_event, create_record, get_record
 logger = logging.getLogger(__name__)
 
 
+def _normalize_suggestions(raw: object) -> list[dict]:
+    """Return inbox suggestions as a list of dicts regardless of storage shape."""
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+    return []
+
+
 def create_asset(payload: dict) -> dict:
     asset = create_record("assets", payload)
     append_event(
@@ -346,7 +360,7 @@ def apply_inbox_suggestion(inbox_id: str, suggestion_index: int) -> dict:
     if not inbox_item:
         raise ValueError("Inbox-element ikke funnet")
 
-    suggestions = list(inbox_item.get("suggestions") or [])
+    suggestions = _normalize_suggestions(inbox_item.get("suggestions"))
     if suggestion_index < 0 or suggestion_index >= len(suggestions):
         raise ValueError("Ugyldig forslagsindeks")
 
@@ -659,7 +673,7 @@ def build_priority_engine(limit: int = 5) -> dict:
     for inbox_item in list_records("inbox_items"):
         if inbox_item.get("status") in {"processed"}:
             continue
-        suggestions = inbox_item.get("suggestions") or []
+        suggestions = _normalize_suggestions(inbox_item.get("suggestions"))
         task_suggestions = [s for s in suggestions if s.get("object_type") == "task"]
         if not task_suggestions:
             continue

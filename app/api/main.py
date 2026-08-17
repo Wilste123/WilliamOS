@@ -1,7 +1,9 @@
+import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.routes import assets, auth, chat, documents, goals, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
@@ -19,7 +21,7 @@ app = FastAPI(
 
 _cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
 ).split(",")
 
 app.add_middleware(
@@ -43,6 +45,17 @@ app.include_router(decisions_router, prefix="/decisions", tags=["decisions"])
 app.include_router(events_router, prefix="/events", tags=["events"])
 app.include_router(memory.router, prefix="/memory", tags=["memory"])
 app.include_router(usage_router, prefix="/usage", tags=["usage"])
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception):
+    logger.exception("Unhandled API error: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc) or "Internal server error"},
+    )
 
 
 @app.get("/health")
