@@ -120,8 +120,86 @@ export async function sendChat(message: string, history: { role: string; content
   });
 }
 
+export type ChatStreamEvent =
+  | { type: "status"; phase: string }
+  | { type: "token"; text: string }
+  | { type: "done"; sources: unknown[] }
+  | { type: "error"; message: string };
+
+export async function streamChat(
+  message: string,
+  history: { role: string; content: string }[],
+  onEvent: (event: ChatStreamEvent) => void
+): Promise<void> {
+  const session = getSession();
+  if (!session) {
+    throw new ApiError("Not authenticated", 401);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/chat/stream`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "X-Refresh-Token": session.refresh_token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, history, use_documents: true }),
+    });
+  } catch {
+    throw new ApiError(
+      "Kunne ikke nå backend. Sjekk at FastAPI kjører (uvicorn app.api.main:app --reload --port 8000). " +
+        "På iPhone via ngrok: bruk kun ngrok på port 3000 — ikke localhost:8000.",
+      0
+    );
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new ApiError(parseErrorDetail(payload), response.status);
+  }
+  if (!response.body) {
+    throw new ApiError("Ingen strøm fra serveren.", 0);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      emitSseLines(part, onEvent);
+    }
+  }
+  emitSseLines(buffer, onEvent);
+}
+
+function emitSseLines(block: string, onEvent: (event: ChatStreamEvent) => void) {
+  for (const line of block.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      onEvent(JSON.parse(line.slice(6)) as ChatStreamEvent);
+    } catch {
+      // ignore malformed chunks
+    }
+  }
+}
+
 export async function fetchCollection(path: string) {
   return request<Record<string, unknown>[]>(path);
+}
+
+export async function createRecord(path: string, body: Record<string, unknown>) {
+  return request<Record<string, unknown>>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchDashboard() {

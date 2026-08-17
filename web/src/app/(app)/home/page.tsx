@@ -1,15 +1,51 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { fetchHome } from "@/lib/api";
 import { getTimeGreeting, type HomeSummary } from "@/lib/home";
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({
+  label,
+  value,
+  hint,
+  href,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  href?: string;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-zinc-950/50 p-4">
       <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
+      {hint && href && (
+        <Link href={href} className="mt-2 inline-block text-sm text-accent">
+          {hint}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Laster oversikt">
+      <header className="space-y-2 pt-2">
+        <div className="h-9 w-56 animate-pulse rounded-lg bg-zinc-800" />
+        <div className="h-4 w-40 animate-pulse rounded bg-zinc-800" />
+      </header>
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-24 animate-pulse rounded-2xl border border-border bg-zinc-900/50"
+          />
+        ))}
+      </div>
+      <div className="h-40 animate-pulse rounded-2xl border border-border bg-zinc-900/50" />
     </div>
   );
 }
@@ -29,8 +65,10 @@ export default function HomePage() {
   }
 
   if (!summary) {
-    return <p className="text-sm text-muted">Laster oversikt…</p>;
+    return <HomeSkeleton />;
   }
+
+  const hasNetWorth = Boolean(summary.net_worth_nok) && summary.net_worth_formatted !== "—";
 
   return (
     <div className="space-y-6">
@@ -42,9 +80,19 @@ export default function HomePage() {
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Nettoformue" value={summary.net_worth_formatted} />
+        <StatCard
+          label="Verdier"
+          value={summary.net_worth_formatted}
+          hint={hasNetWorth ? undefined : "Ingen eiendeler ennå"}
+          href={hasNetWorth ? undefined : "/assets"}
+        />
         <StatCard label="Mål" value={`${summary.active_goals} aktive`} />
-        <StatCard label="Oppgaver" value={`${summary.open_tasks} åpne`} />
+        <StatCard
+          label="Oppgaver"
+          value={`${summary.open_tasks} åpne`}
+          hint={summary.open_tasks === 0 ? "Opprett en oppgave" : undefined}
+          href={summary.open_tasks === 0 ? "/tasks" : undefined}
+        />
         <StatCard
           label="Prosjekter"
           value={`${summary.metrics?.projects ?? 0} aktive`}
@@ -67,7 +115,12 @@ export default function HomePage() {
             ))}
           </ol>
         ) : (
-          <p className="text-sm text-muted">Ingen presserende prioriteringer akkurat nå.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted">Ingen presserende prioriteringer akkurat nå.</p>
+            <Link href="/tasks" className="text-sm text-accent">
+              Opprett en oppgave
+            </Link>
+          </div>
         )}
       </section>
     </div>

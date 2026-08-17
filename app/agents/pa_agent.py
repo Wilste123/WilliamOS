@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 
-from app.services.openai_service import chat_completion, chat_completion_with_tools
+from app.services.openai_service import chat_completion_with_tools, chat_completion_with_tools_stream
 from app.services.profile_service import DEFAULT_ASSISTANT_NAME, get_assistant_name
 from app.agents.self_evolve import log_request
 from app.services.memory_service import get_recent_memory_text, save_memory
@@ -462,26 +462,12 @@ def _normalize_history(raw: list[dict]) -> list[dict]:
     ]
 
 
-def ask_agent(
+def _build_agent_messages(
     message: str,
     *,
     use_documents: bool = True,
     history: list[dict] | None = None,
-) -> tuple[str, list[dict]]:
-    """Return (answer, sources).
-
-    ``history`` is an optional list of previous conversation messages from
-    the current session.  Entries may contain extra UI-layer keys (e.g.
-    ``sources``); this function normalises them internally so the caller
-    does not need to pre-filter.  Only ``user`` and ``assistant`` roles are
-    forwarded to the model.
-    """
-    action_result = handle_actions(message)
-    if action_result["handled"]:
-        return action_result["response"], []
-
-    log_request(message)
-
+) -> tuple[list[dict], list[dict]]:
     from app.services.auth_context import get_current_context
 
     context = get_current_context()
@@ -503,11 +489,64 @@ def ask_agent(
         if doc_context:
             messages.append({"role": "system", "content": doc_context})
 
-    # Inject prior conversation turns so the model has full context
     if history:
         messages.extend(_normalize_history(history))
 
     messages.append({"role": "user", "content": message})
+    return messages, sources
 
+
+def ask_agent(
+    message: str,
+    *,
+    use_documents: bool = True,
+    history: list[dict] | None = None,
+) -> tuple[str, list[dict]]:
+    """Return (answer, sources).
+
+    ``history`` is an optional list of previous conversation messages from
+    the current session.  Entries may contain extra UI-layer keys (e.g.
+    ``sources``); this function normalises them internally so the caller
+    does not need to pre-filter.  Only ``user`` and ``assistant`` roles are
+    forwarded to the model.
+    """
+    action_result = handle_actions(message)
+    if action_result["handled"]:
+        return action_result["response"], []
+
+    log_request(message)
+    messages, sources = _build_agent_messages(
+        message, use_documents=use_documents, history=history
+    )
     answer = chat_completion_with_tools(messages, WILLIAMOS_TOOLS, _execute_tool)
     return answer, sources
+
+
+def ask_agent_stream(
+    message: str,
+    *,
+    use_documents: bool = True,
+    history: list[dict] | None = None,
+):
+    """Yield SSE-ready dicts: status, token, done, or error."""
+    action_result = handle_actions(message)
+    if action_result["handled"]:
+        yield {"type": "token", "text": action_result["response"]}
+        yield {"type": "done", "sources": []}
+        return
+
+    log_request(message)
+    messages, sources = _build_agent_messages(
+        message, use_documents=use_documents, history=history
+    )
+    try:
+        for kind, value in chat_completion_with_tools_stream(
+            messages, WILLIAMOS_TOOLS, _execute_tool
+        ):
+            if kind == "status":
+                yield {"type": "status", "phase": value}
+            else:
+                yield {"type": "token", "text": value}
+        yield {"type": "done", "sources": sources}
+    except Exception as exc:
+        yield {"type": "error", "message": str(exc)}

@@ -14,6 +14,27 @@ def test_chat_requires_auth(client):
     assert response.status_code == 401
 
 
+def test_chat_stream_requires_auth(client):
+    response = client.post("/chat/stream", json={"message": "Hei"})
+    assert response.status_code == 401
+
+
+def test_chat_stream_with_auth(authed_client, monkeypatch):
+    def fake_stream(message, *, use_documents=True, history=None):
+        yield {"type": "status", "phase": "thinking"}
+        yield {"type": "token", "text": "Hei "}
+        yield {"type": "token", "text": "William"}
+        yield {"type": "done", "sources": []}
+
+    monkeypatch.setattr("app.api.routes.chat.ask_agent_stream", fake_stream)
+    response = authed_client.post("/chat/stream", json={"message": "Hei"})
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+    body = response.text
+    assert "Hei " in body
+    assert '"type": "done"' in body
+
+
 def test_home_requires_auth(client):
     response = client.get("/home")
     assert response.status_code == 401

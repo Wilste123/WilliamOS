@@ -2,15 +2,21 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { fetchMe, sendChat } from "@/lib/api";
+import { fetchMe, streamChat } from "@/lib/api";
 
 type Message = { role: "user" | "assistant"; content: string };
+
+function statusLabel(assistantName: string, phase: string | null): string {
+  if (phase === "tools") return `${assistantName} bruker verktøy…`;
+  return `${assistantName} tenker…`;
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [assistantName, setAssistantName] = useState("WilliamOS");
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMe().then((me) => setAssistantName(me.assistant_name ?? "WilliamOS"));
@@ -25,13 +31,44 @@ export default function ChatPage() {
     const nextMessages: Message[] = [...messages, { role: "user", content: userMessage }];
     setMessages(nextMessages);
     setLoading(true);
+    setPhase("thinking");
+
+    let assistant = "";
+    let sawToken = false;
 
     try {
-      const response = await sendChat(
+      await streamChat(
         userMessage,
-        nextMessages.map((m) => ({ role: m.role, content: m.content }))
+        nextMessages.map((m) => ({ role: m.role, content: m.content })),
+        (event) => {
+          if (event.type === "status") {
+            setPhase(event.phase);
+            return;
+          }
+          if (event.type === "token") {
+            sawToken = true;
+            assistant += event.text;
+            setPhase(null);
+            setMessages([...nextMessages, { role: "assistant", content: assistant }]);
+            return;
+          }
+          if (event.type === "error") {
+            setMessages([
+              ...nextMessages,
+              {
+                role: "assistant",
+                content: event.message || "Beklager, noe gikk galt. Sjekk at API-et kjører.",
+              },
+            ]);
+          }
+        }
       );
-      setMessages([...nextMessages, { role: "assistant", content: response.answer }]);
+      if (!sawToken && !assistant) {
+        setMessages([
+          ...nextMessages,
+          { role: "assistant", content: "Ingen respons fra assistenten." },
+        ]);
+      }
     } catch {
       setMessages([
         ...nextMessages,
@@ -39,8 +76,11 @@ export default function ChatPage() {
       ]);
     } finally {
       setLoading(false);
+      setPhase(null);
     }
   }
+
+  const showThinking = loading && phase !== null;
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col gap-4">
@@ -63,7 +103,9 @@ export default function ChatPage() {
             {message.content}
           </div>
         ))}
-        {loading && <p className="text-sm text-muted">{assistantName} tenker…</p>}
+        {showThinking && (
+          <p className="text-sm text-muted">{statusLabel(assistantName, phase)}</p>
+        )}
       </div>
 
       <form onSubmit={onSubmit} className="flex gap-2">

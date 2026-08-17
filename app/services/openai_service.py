@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from dotenv import load_dotenv
@@ -127,3 +127,126 @@ def chat_completion_with_tools(
             return msg.content or ""
 
     return "Maksimalt antall iterasjoner nådd uten endelig svar."
+
+
+def chat_completion_stream(messages: list[dict], temperature: float = 0.3) -> Iterator[str]:
+    """Yield text deltas from a streaming chat completion (no tools)."""
+    if client is None:
+        yield _NO_CLIENT_MSG
+        return
+    try:
+        stream = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            temperature=temperature,
+            stream=True,
+        )
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+    except Exception as e:
+        logger.error("OpenAI API stream failed: %s: %s", type(e).__name__, e)
+        yield _API_ERROR_MSG
+
+
+def chat_completion_with_tools_stream(
+    messages: list[dict],
+    tools: list[dict],
+    tool_handler: Callable[[str, dict], Any],
+    temperature: float = 0.3,
+    max_iterations: int = 8,
+) -> Iterator[tuple[str, str]]:
+    """Stream assistant text; run tools between rounds without exposing tool JSON.
+
+    Yields ``("status", phase)`` or ``("token", text)``.
+    """
+    if client is None:
+        yield ("token", _NO_CLIENT_MSG)
+        return
+
+    current_messages = list(messages)
+    yield ("status", "thinking")
+
+    for _ in range(max_iterations):
+        try:
+            stream = client.chat.completions.create(
+                model=MODEL,
+                messages=current_messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=temperature,
+                stream=True,
+            )
+        except Exception as e:
+            logger.error("OpenAI API stream failed: %s: %s", type(e).__name__, e)
+            yield ("token", _API_ERROR_MSG)
+            return
+
+        tool_acc: dict[int, dict[str, str]] = {}
+        content_parts: list[str] = []
+        finish_reason = None
+
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+            delta = choice.delta
+            if delta is None:
+                continue
+            if delta.content:
+                content_parts.append(delta.content)
+                yield ("token", delta.content)
+            if getattr(delta, "tool_calls", None):
+                for tc in delta.tool_calls:
+                    entry = tool_acc.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                    if tc.id:
+                        entry["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            entry["name"] += tc.function.name
+                        if tc.function.arguments:
+                            entry["arguments"] += tc.function.arguments
+
+        if finish_reason == "tool_calls" or tool_acc:
+            yield ("status", "tools")
+            current_messages.append(
+                {
+                    "role": "assistant",
+                    "content": "".join(content_parts) or "",
+                    "tool_calls": [
+                        {
+                            "id": entry["id"],
+                            "type": "function",
+                            "function": {"name": entry["name"], "arguments": entry["arguments"]},
+                        }
+                        for _, entry in sorted(tool_acc.items())
+                    ],
+                }
+            )
+            for _, entry in sorted(tool_acc.items()):
+                try:
+                    args = json.loads(entry["arguments"] or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                try:
+                    result = tool_handler(entry["name"], args)
+                except Exception as exc:
+                    logger.error("Tool %s failed: %s", entry["name"], exc)
+                    result = {"error": str(exc)}
+                current_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": entry["id"],
+                        "content": json.dumps(result, ensure_ascii=False, default=str),
+                    }
+                )
+            continue
+
+        return
+
+    yield ("token", "Maksimalt antall iterasjoner nådd uten endelig svar.")
