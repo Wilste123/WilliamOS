@@ -27,9 +27,13 @@ export default function MemoryPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!text.trim()) return;
-    await saveMemory(text.trim(), key || undefined, category || undefined);
-    setText("");
-    await load();
+    try {
+      await saveMemory(text.trim(), key || undefined, category || undefined);
+      setText("");
+      await load();
+    } catch {
+      setStored("Kunne ikke lagre minne.");
+    }
   }
 
   const activeGoals = goals.filter((goal) => goal.status === "active");

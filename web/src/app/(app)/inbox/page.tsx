@@ -48,6 +48,8 @@ export default function InboxPage() {
       await captureInbox(text.trim());
       setText("");
       await load();
+    } catch {
+      setItems((current) => current);
     } finally {
       setLoading(false);
     }

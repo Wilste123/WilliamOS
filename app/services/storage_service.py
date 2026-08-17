@@ -14,6 +14,7 @@ DEFAULT_VISIBILITY = {
     "documents": "household",
     "decisions": "household",
     "events": "household",
+    "goals": "household",
     "inbox_items": "private",
     "memory_items": "private",
     "requests_log": "private",

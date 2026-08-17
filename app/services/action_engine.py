@@ -468,7 +468,9 @@ def build_dashboard_summary() -> dict:
     decisions = list_records("decisions")
     events = list_records("events")
 
-    open_tasks = [task for task in tasks if not task.get("completed")]
+    open_tasks = [
+        task for task in tasks if not task.get("completed") and task.get("status") != "completed"
+    ]
     priorities = sorted(
         open_tasks,
         key=lambda task: (
@@ -588,7 +590,11 @@ def build_priority_engine(limit: int = 5) -> dict:
     assets = list_records("assets")
     net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
 
-    open_tasks = [task for task in list_records("tasks") if not task.get("completed")]
+    open_tasks = [
+        task
+        for task in list_records("tasks")
+        if not task.get("completed") and task.get("status") != "completed"
+    ]
     for task in open_tasks:
         due = _parse_date_only(task.get("due_date"))
         priority = int(task.get("priority") or 2)

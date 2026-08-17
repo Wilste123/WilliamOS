@@ -4,18 +4,28 @@ import { clearSession, getSession, saveSession, type AuthSession } from "./auth"
 // Override only if you expose FastAPI on its own public URL.
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
-function parseErrorDetail(payload: unknown): string {
-  if (!payload || typeof payload !== "object" || !("detail" in payload)) {
-    return "Forespørselen feilet";
+function parseErrorDetail(payload: unknown, status: number): string {
+  if (payload && typeof payload === "object") {
+    if ("detail" in payload) {
+      const detail = (payload as { detail: unknown }).detail;
+      if (typeof detail === "string" && detail.trim()) return detail;
+      if (Array.isArray(detail) && detail.length > 0) {
+        return detail
+          .map((item) =>
+            typeof item === "object" && item && "msg" in item ? String(item.msg) : "Ugyldig input"
+          )
+          .join(", ");
+      }
+    }
+    if ("message" in payload && typeof (payload as { message: unknown }).message === "string") {
+      const message = (payload as { message: string }).message;
+      if (message.trim()) return message;
+    }
   }
-  const detail = (payload as { detail: unknown }).detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) {
-    return detail
-      .map((item) => (typeof item === "object" && item && "msg" in item ? String(item.msg) : "Ugyldig input"))
-      .join(", ");
-  }
-  return "Forespørselen feilet";
+  if (status === 401) return "Du må logge inn på nytt.";
+  if (status === 403) return "Du har ikke tilgang til denne handlingen.";
+  if (status >= 500) return "Backend-feil. Sjekk at migrasjoner er kjørt og at FastAPI kjører.";
+  return `Forespørselen feilet (${status})`;
 }
 
 export class ApiError extends Error {
@@ -63,11 +73,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const payload = await response.json().catch(() => ({}));
 
   if (response.status === 202) {
-    throw new ApiError(parseErrorDetail(payload), 202);
+    throw new ApiError(parseErrorDetail(payload, response.status), 202);
   }
 
   if (!response.ok) {
-    throw new ApiError(parseErrorDetail(payload), response.status);
+    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
   }
 
   return payload as T;
@@ -167,7 +177,7 @@ export async function streamChat(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new ApiError(parseErrorDetail(payload), response.status);
+    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
   }
   if (!response.body) {
     throw new ApiError("Ingen strøm fra serveren.", 0);

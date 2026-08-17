@@ -8,10 +8,13 @@ import { APP_NAME } from "@/lib/navigation";
 export default function SettingsPage() {
   const [assistantName, setAssistantName] = useState(APP_NAME);
   const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
 
   useEffect(() => {
-    fetchMe().then((me) => setAssistantName(me.assistant_name ?? APP_NAME));
+    fetchMe()
+      .then((me) => setAssistantName(me.assistant_name ?? APP_NAME))
+      .catch(() => undefined);
     fetchUsageStats()
       .then(setUsage)
       .catch(() => setUsage(null));
@@ -19,9 +22,15 @@ export default function SettingsPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const result = await updateAssistantName(assistantName.trim());
-    setAssistantName(result.assistant_name);
-    setSaved(result.assistant_name);
+    setError(null);
+    try {
+      const result = await updateAssistantName(assistantName.trim());
+      setAssistantName(result.assistant_name);
+      setSaved(result.assistant_name);
+    } catch (err) {
+      setSaved(null);
+      setError(err instanceof Error ? err.message : "Kunne ikke lagre navn.");
+    }
   }
 
   return (
@@ -73,6 +82,7 @@ export default function SettingsPage() {
           Lagre navn
         </button>
         {saved && <p className="text-sm text-muted">Assistenten heter nå {saved}.</p>}
+        {error && <p className="text-sm text-red-400">{error}</p>}
       </form>
     </div>
   );

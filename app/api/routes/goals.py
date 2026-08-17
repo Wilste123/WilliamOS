@@ -15,7 +15,10 @@ def list_goals():
 
 @router.post("")
 def create_goal(goal: GoalCreate):
-    return create_goal_record(goal.model_dump(mode="json"))
+    try:
+        return create_goal_record(goal.model_dump(mode="json"))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.patch("/{goal_id}")

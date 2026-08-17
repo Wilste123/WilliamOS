@@ -117,7 +117,9 @@ function ChatPageInner() {
         setMessages(loadStoredMessages());
       })
       .catch(() => setMessages(loadStoredMessages()));
-    fetchMe().then((me) => setAssistantName(me.assistant_name ?? "Mini-jarv"));
+    fetchMe()
+      .then((me) => setAssistantName(me.assistant_name ?? "Mini-jarv"))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
