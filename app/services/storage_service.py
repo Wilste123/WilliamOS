@@ -1,9 +1,11 @@
+"""Supabase persistence with enforced user/household scoping."""
+
 import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.database.supabase import get_authenticated_client, get_supabase, response_data
-from app.services.auth_context import get_current_context
+from app.database.supabase import get_authenticated_client, response_data
+from app.services.auth_context import UserContext, get_current_context
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,6 @@ DEFAULT_VISIBILITY = {
     "finance_accounts": "household",
     "finance_snapshots": "household",
     "health_metrics": "private",
-    "user_integrations": "private",
     "inbox_items": "private",
     "memory_items": "private",
     "requests_log": "private",
@@ -26,17 +27,29 @@ DEFAULT_VISIBILITY = {
     "usage_log": "private",
 }
 
+# Only user_id — no visibility / household_id columns
+USER_ONLY_COLLECTIONS = frozenset({"user_integrations", "usage_log"})
+
+IMMUTABLE_AUTH_FIELDS = frozenset({"user_id", "household_id", "visibility"})
+
+
+def _require_auth_context() -> UserContext:
+    context = get_current_context()
+    if context is None or not context.user_id:
+        raise RuntimeError("Authentication required. Sign in to access data.")
+    return context
+
 
 def get_client():
-    """Return an authenticated client when logged in, otherwise the anon client."""
-    context = get_current_context()
-    if context and context.access_token and context.refresh_token:
-        return get_authenticated_client(context.access_token, context.refresh_token)
-    return get_supabase()
+    """Return a Supabase client scoped to the signed-in user (RLS applies)."""
+    context = _require_auth_context()
+    if not context.access_token or not context.refresh_token:
+        raise RuntimeError("Authentication required. Missing session tokens.")
+    return get_authenticated_client(context.access_token, context.refresh_token)
 
 
 def _require_supabase(operation: str, collection: str):
-    """Return a live Supabase client or raise a clear RuntimeError."""
+    """Return a live authenticated Supabase client or raise."""
     client = get_client()
     if client is None:
         raise RuntimeError(
@@ -47,31 +60,47 @@ def _require_supabase(operation: str, collection: str):
 
 
 def _apply_auth_fields(collection: str, payload: dict) -> dict:
-    context = get_current_context()
-    if context is None:
-        return payload
-
+    """Stamp ownership from the current session — callers cannot override user/household."""
+    context = _require_auth_context()
     record = {**payload}
-    record.setdefault("user_id", context.user_id)
-    record.setdefault("visibility", DEFAULT_VISIBILITY.get(collection, "household"))
 
-    if record["visibility"] == "household":
-        record.setdefault("household_id", context.household_id)
+    if collection in USER_ONLY_COLLECTIONS:
+        record["user_id"] = context.user_id
+        record.pop("household_id", None)
+        record.pop("visibility", None)
+        return record
+
+    visibility = payload.get("visibility") or DEFAULT_VISIBILITY.get(collection, "household")
+    if visibility not in {"private", "household"}:
+        visibility = DEFAULT_VISIBILITY.get(collection, "household")
+
+    record["user_id"] = context.user_id
+    record["visibility"] = visibility
+
+    if visibility == "household":
+        if not context.household_id:
+            raise RuntimeError("Household membership required for shared records.")
+        record["household_id"] = context.household_id
     else:
         record["household_id"] = None
 
     return record
 
 
+def _sanitize_update_patch(updates: dict) -> dict:
+    """Prevent moving records across users or households via PATCH."""
+    return {key: value for key, value in updates.items() if key not in IMMUTABLE_AUTH_FIELDS}
+
+
 def list_records(collection: str) -> list[dict]:
-    """Return all records for *collection* from Supabase."""
+    """Return records visible to the current user via Supabase RLS."""
     client = _require_supabase("list_records", collection)
     response = client.table(collection).select("*").order("created_at", desc=True).execute()
     return response_data(response, []) or []
 
 
 def get_record(collection: str, record_id: str) -> dict | None:
-    """Return a single record by id from Supabase."""
+    """Return a single record if RLS allows access."""
     client = _require_supabase("get_record", collection)
     response = client.table(collection).select("*").eq("id", record_id).limit(1).execute()
     row = response_data(response, [])
@@ -81,7 +110,7 @@ def get_record(collection: str, record_id: str) -> dict | None:
 
 
 def create_record(collection: str, payload: dict) -> dict:
-    """Persist a new record to Supabase."""
+    """Persist a new record owned by the current user/household."""
     client = _require_supabase("create_record", collection)
     record = {
         "id": str(uuid4()),
@@ -96,9 +125,9 @@ def create_record(collection: str, payload: dict) -> dict:
 
 
 def update_record(collection: str, record_id: str, updates: dict) -> dict | None:
-    """Update an existing record in Supabase."""
+    """Update an existing record if RLS allows access."""
     client = _require_supabase("update_record", collection)
-    patch = {**updates, "updated_at": datetime.now(timezone.utc).isoformat()}
+    patch = {**_sanitize_update_patch(updates), "updated_at": datetime.now(timezone.utc).isoformat()}
     response = client.table(collection).update(patch).eq("id", record_id).execute()
     data = response_data(response, [])
     if data:
@@ -107,7 +136,7 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
 
 
 def delete_records(collection: str, record_ids: list[str] | None = None) -> int:
-    """Delete records in *collection*. If *record_ids* is omitted, delete all visible rows."""
+    """Delete records visible to the current user."""
     client = _require_supabase("delete_records", collection)
     if record_ids:
         deleted = 0

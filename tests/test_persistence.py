@@ -85,8 +85,20 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
 
 
 def _patch_supabase(monkeypatch, fake_client=None):
-    """Patch get_client to return *fake_client* (or a fresh stub if not given)."""
+    """Patch get_client to return *fake_client* and set auth context for scoping."""
     from app.services import storage_service
+    from app.services.auth_context import UserContext, set_current_context
+
+    set_current_context(
+        UserContext(
+            user_id="00000000-0000-4000-8000-000000000001",
+            email="test@example.com",
+            household_id="00000000-0000-4000-8000-000000000002",
+            access_token="test-access-token",
+            refresh_token="test-refresh-token",
+            display_name="Test User",
+        )
+    )
     client = fake_client if fake_client is not None else _make_fake_supabase()
     monkeypatch.setattr(storage_service, "get_client", lambda: client)
     return client
@@ -282,8 +294,27 @@ class TestChatActionPersistence:
 # ---------------------------------------------------------------------------
 
 class TestSupabaseRequired:
+    def test_list_records_raises_when_not_authenticated(self, monkeypatch):
+        from app.services import storage_service
+        from app.services.auth_context import set_current_context
+
+        set_current_context(None)
+        with pytest.raises(RuntimeError, match="Authentication required"):
+            storage_service.list_records("assets")
+
     def test_list_records_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
         monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
@@ -291,6 +322,17 @@ class TestSupabaseRequired:
 
     def test_get_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
         monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
@@ -298,6 +340,17 @@ class TestSupabaseRequired:
 
     def test_create_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
         monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
@@ -305,6 +358,17 @@ class TestSupabaseRequired:
 
     def test_update_record_raises_when_supabase_not_configured(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
         monkeypatch.setattr(storage_service, "get_client", lambda: None)
 
         with pytest.raises(RuntimeError, match="Supabase is not configured"):
@@ -312,6 +376,17 @@ class TestSupabaseRequired:
 
     def test_create_record_propagates_supabase_error(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
 
         class _BrokenTable:
             def insert(self, _payload):
@@ -326,8 +401,27 @@ class TestSupabaseRequired:
         with pytest.raises(RuntimeError, match="DB connection refused"):
             storage_service.create_record("projects", {"name": "Will fail"})
 
+    def test_create_record_stamps_auth_fields(self, monkeypatch):
+        client = _patch_supabase(monkeypatch)
+        from app.services.storage_service import create_record
+
+        record = create_record("tasks", {"title": "Scoped"})
+        assert record["user_id"] == "00000000-0000-4000-8000-000000000001"
+        assert record["household_id"] == "00000000-0000-4000-8000-000000000002"
+
     def test_list_records_propagates_supabase_error(self, monkeypatch):
         from app.services import storage_service
+        from app.services.auth_context import UserContext, set_current_context
+
+        set_current_context(
+            UserContext(
+                user_id="u",
+                email="e",
+                household_id="h",
+                access_token="a",
+                refresh_token="r",
+            )
+        )
 
         class _BrokenQuery:
             def select(self, _f="*"):
