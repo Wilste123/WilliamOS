@@ -3,9 +3,13 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser
 from app.services.auth_core import context_to_response, sign_in, sign_up
-from app.services.profile_service import get_assistant_name
+from app.services.profile_service import get_assistant_name, update_assistant_name
 
 router = APIRouter()
+
+
+class ProfileUpdateRequest(BaseModel):
+    assistant_name: str | None = Field(default=None, min_length=1)
 
 
 class SignUpRequest(BaseModel):
@@ -72,3 +76,11 @@ def me(user: CurrentUser):
         display_name=user.display_name,
         assistant_name=get_assistant_name(),
     )
+
+
+@router.patch("/profile")
+def update_profile(request: ProfileUpdateRequest, user: CurrentUser):
+    if request.assistant_name is None:
+        return {"assistant_name": get_assistant_name()}
+    saved = update_assistant_name(request.assistant_name)
+    return {"assistant_name": saved}

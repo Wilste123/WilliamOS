@@ -407,3 +407,63 @@ def build_timeline(limit: int = 50) -> list[dict]:
         key=lambda event: event.get("event_date") or event.get("created_at", ""),
         reverse=True,
     )[:limit]
+
+
+def _safe_list_records(collection: str) -> list[dict]:
+    try:
+        return list_records(collection)
+    except Exception:
+        return []
+
+
+def format_net_worth_nok(amount: float) -> str:
+    """Format NOK amount for home screen display."""
+    if amount >= 1_000_000:
+        millions = amount / 1_000_000
+        text = f"{millions:.1f}".replace(".", ",")
+        if text.endswith(",0"):
+            text = text[:-2]
+        return f"{text} MNOK"
+    if amount >= 1_000:
+        return f"{round(amount / 1_000):,} kNOK".replace(",", " ")
+    return f"{round(amount):,} NOK".replace(",", " ")
+
+
+def build_home_summary(display_name: str | None = None) -> dict:
+    """Compact summary for the app home/start screen."""
+    dashboard = build_dashboard_summary()
+    assets = list_records("assets")
+    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+
+    goals = _safe_list_records("goals")
+    active_goals = len(
+        [goal for goal in goals if goal.get("status", "active") in {"active", "open", "in_progress"}]
+    )
+
+    priority_titles: list[str] = []
+    for task in dashboard["priorities"]:
+        title = (task.get("title") or "").strip()
+        if title and title not in priority_titles:
+            priority_titles.append(title)
+        if len(priority_titles) >= 3:
+            break
+
+    if len(priority_titles) < 3:
+        for project in dashboard["active_projects"]:
+            title = (project.get("name") or "").strip()
+            if title and title not in priority_titles:
+                priority_titles.append(title)
+            if len(priority_titles) >= 3:
+                break
+
+    first_name = (display_name or "der").split()[0]
+
+    return {
+        "greeting_name": first_name,
+        "net_worth_nok": net_worth_nok,
+        "net_worth_formatted": format_net_worth_nok(net_worth_nok) if net_worth_nok else "—",
+        "active_goals": active_goals,
+        "open_tasks": dashboard["metrics"]["open_tasks"],
+        "priorities": priority_titles,
+        "metrics": dashboard["metrics"],
+    }

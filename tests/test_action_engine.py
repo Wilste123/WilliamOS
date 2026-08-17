@@ -211,7 +211,30 @@ class TestBuildDashboardSummary:
         assert all(p["status"] == "active" for p in dash["active_projects"])
 
 
-class TestApplyInboxSuggestion:
+class TestBuildHomeSummary:
+    def test_net_worth_and_priorities(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import build_home_summary, create_asset, create_project, create_task
+
+        create_asset({"name": "Hytte", "estimated_value": 3_200_000})
+        create_asset({"name": "Bil", "estimated_value": 3_000_000})
+        create_task({"title": "Mazda etterkontroll", "priority": 3, "status": "open"})
+        create_project({"name": "HouseOS", "status": "active"})
+        create_project({"name": "Tun32", "status": "active"})
+
+        home = build_home_summary("William")
+        assert home["greeting_name"] == "William"
+        assert home["net_worth_nok"] == 6_200_000
+        assert home["net_worth_formatted"] == "6,2 MNOK"
+        assert home["open_tasks"] == 1
+        assert "Mazda etterkontroll" in home["priorities"]
+
+    def test_format_net_worth(self):
+        from app.services.action_engine import format_net_worth_nok
+
+        assert format_net_worth_nok(6_200_000) == "6,2 MNOK"
+        assert format_net_worth_nok(500_000) == "500 kNOK"
+
     def test_apply_asset_suggestion_creates_asset(self, monkeypatch):
         store: dict = {}
         _patch_supabase(monkeypatch, _make_fake_supabase(store))

@@ -2,7 +2,7 @@
   "name": "WilliamOS",
   "short_name": "WilliamOS",
   "description": "Personal Chief of Staff",
-  "start_url": "/chat",
+  "start_url": "/home",
   "display": "standalone",
   "background_color": "#0a0a0b",
   "theme_color": "#0a0a0b",

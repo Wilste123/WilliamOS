@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_current_user
-from app.services.action_engine import build_dashboard_summary, build_timeline, build_weekly_brief
+from app.api.deps import CurrentUser, get_current_user
+from app.services.action_engine import build_dashboard_summary, build_home_summary, build_timeline, build_weekly_brief
 
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+@router.get("/home")
+def home(user: CurrentUser):
+    return build_home_summary(user.display_name)
 
 
 @router.get("/dashboard")

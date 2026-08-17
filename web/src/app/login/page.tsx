@@ -32,7 +32,7 @@ export default function LoginPage() {
           household_name: String(form.get("household_name") ?? "Min husholdning"),
         });
       }
-      router.replace("/chat");
+      router.replace("/home");
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Noe gikk galt";
       setError(message);

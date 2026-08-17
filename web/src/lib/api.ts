@@ -92,8 +92,61 @@ export async function sendChat(message: string, history: { role: string; content
   });
 }
 
+export async function fetchCollection(path: string) {
+  return request<Record<string, unknown>[]>(path);
+}
+
 export async function fetchDashboard() {
-  return request<Record<string, unknown>>("/dashboard");
+  return request<DashboardSummary>("/dashboard");
+}
+
+export type DashboardSummary = {
+  metrics: {
+    assets: number;
+    open_tasks: number;
+    projects: number;
+    documents: number;
+    open_decisions: number;
+  };
+  priorities: Record<string, unknown>[];
+  upcoming_events: Record<string, unknown>[];
+  active_projects: Record<string, unknown>[];
+  new_documents: Record<string, unknown>[];
+  recent_activity: Record<string, unknown>[];
+};
+
+export async function fetchWeeklyBrief() {
+  return request<{ summary_text: string }>("/weekly-brief");
+}
+
+export async function fetchTimeline() {
+  return request<Record<string, unknown>[]>("/timeline");
+}
+
+export async function fetchMemory() {
+  return request<{ items: Record<string, unknown>[]; text: string }>("/memory");
+}
+
+export async function saveMemory(value: string, key?: string, category?: string) {
+  return request<{ saved: boolean }>("/chat/memory", {
+    method: "POST",
+    body: JSON.stringify({ value, key, category }),
+  });
+}
+
+export async function fetchSelfEvolve() {
+  return request<{ count: number; top_signals: [string, number][] }>("/chat/self-evolve");
+}
+
+export async function updateAssistantName(name: string) {
+  return request<{ assistant_name: string }>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify({ assistant_name: name }),
+  });
+}
+
+export async function fetchHome() {
+  return request<import("./home").HomeSummary>("/home");
 }
 
 export async function fetchInbox() {
