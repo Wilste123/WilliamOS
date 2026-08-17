@@ -8,7 +8,8 @@ export type AuthSession = {
   refresh_token: string;
 };
 
-const STORAGE_KEY = "williamos_session";
+export const SESSION_STORAGE_KEY = "williamos_session";
+const STORAGE_KEY = SESSION_STORAGE_KEY;
 const SESSION_CHANGE_EVENT = "williamos-session-change";
 
 function notifySessionChange(): void {
