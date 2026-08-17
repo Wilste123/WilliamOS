@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.deps import attach_refreshed_token_headers
+from app.api.middleware.auth_context import auth_context_middleware
 from app.api.routes import assets, auth, chat, documents, finance, goals, health, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
@@ -59,6 +60,11 @@ logger = logging.getLogger(__name__)
 async def refreshed_token_middleware(request: Request, call_next):
     response = await call_next(request)
     return attach_refreshed_token_headers(response)
+
+
+@app.middleware("http")
+async def bind_auth_context_middleware(request: Request, call_next):
+    return await auth_context_middleware(request, call_next)
 
 
 @app.exception_handler(Exception)

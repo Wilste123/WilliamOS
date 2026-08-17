@@ -1,3 +1,13 @@
+def test_create_asset_with_auth(authed_client, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.routes.assets.create_asset_record",
+        lambda payload: {"id": "asset-1", "name": payload.get("name"), "status": payload.get("status")},
+    )
+    response = authed_client.post("/assets", json={"name": "Mazda", "status": "active"})
+    assert response.status_code == 200
+    assert response.json()["name"] == "Mazda"
+
+
 def test_asset_detail_requires_auth(client):
     response = client.get("/assets/test-id")
     assert response.status_code == 401

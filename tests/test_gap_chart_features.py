@@ -79,8 +79,18 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
 
 def _patch_supabase(monkeypatch, fake_client=None):
     from app.services import storage_service
+    from app.services.auth_context import UserContext, set_current_context
 
     client = fake_client if fake_client is not None else _make_fake_supabase()
+    set_current_context(
+        UserContext(
+            user_id="user-test",
+            email="test@example.com",
+            household_id="household-test",
+            access_token="test-access-token",
+            refresh_token="test-refresh-token",
+        )
+    )
     monkeypatch.setattr(storage_service, "get_client", lambda: client)
     return client
 
