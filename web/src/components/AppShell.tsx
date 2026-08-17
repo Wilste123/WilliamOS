@@ -1,17 +1,21 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/AppNav";
+import { BottomNav } from "@/components/BottomNav";
 import { fetchMe } from "@/lib/api";
 import { getSession, logout } from "@/lib/auth";
+import { isHiddenRoute } from "@/lib/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const hiddenLabRoute = isHiddenRoute(pathname);
 
   useEffect(() => {
     const session = getSession();
@@ -114,7 +118,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+        <main className="mx-auto max-w-3xl px-4 py-4 pb-28 lg:pb-4">
+          {hiddenLabRoute && (
+            <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              Lab-modul (skjult i MVP). Denne siden er ikke en del av test-appen ennå.
+            </p>
+          )}
+          {children}
+        </main>
+        <BottomNav onOpenMenu={() => setMenuOpen(true)} />
       </div>
     </div>
   );
