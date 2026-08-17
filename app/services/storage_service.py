@@ -40,6 +40,44 @@ def _require_auth_context() -> UserContext:
     return context
 
 
+def _record_visibility(record: dict, collection: str) -> str:
+    visibility = record.get("visibility")
+    if visibility in {"private", "household"}:
+        return visibility
+    return DEFAULT_VISIBILITY.get(collection, "household")
+
+
+def can_access_record(record: dict, context: UserContext, collection: str) -> bool:
+    """Return True when the signed-in user may read the record."""
+    if collection in USER_ONLY_COLLECTIONS:
+        return record.get("user_id") == context.user_id
+
+    visibility = _record_visibility(record, collection)
+    if visibility == "private":
+        return record.get("user_id") == context.user_id
+
+    household_id = record.get("household_id")
+    return (
+        household_id is not None
+        and context.household_id is not None
+        and household_id == context.household_id
+    )
+
+
+def _apply_read_scope(query, collection: str, context: UserContext):
+    """Apply explicit read filters in addition to Supabase RLS."""
+    if collection in USER_ONLY_COLLECTIONS:
+        return query.eq("user_id", context.user_id)
+
+    if not context.household_id:
+        return query.eq("user_id", context.user_id).eq("visibility", "private")
+
+    return query.or_(
+        f"and(visibility.eq.private,user_id.eq.{context.user_id}),"
+        f"and(visibility.eq.household,household_id.eq.{context.household_id})"
+    )
+
+
 def get_client():
     """Return a Supabase client scoped to the signed-in user (RLS applies)."""
     context = _require_auth_context()
@@ -93,20 +131,36 @@ def _sanitize_update_patch(updates: dict) -> dict:
 
 
 def list_records(collection: str) -> list[dict]:
-    """Return records visible to the current user via Supabase RLS."""
+    """Return records visible to the current user."""
+    context = _require_auth_context()
     client = _require_supabase("list_records", collection)
-    response = client.table(collection).select("*").order("created_at", desc=True).execute()
-    return response_data(response, []) or []
+    query = _apply_read_scope(
+        client.table(collection).select("*").order("created_at", desc=True),
+        collection,
+        context,
+    )
+    response = query.execute()
+    rows = response_data(response, []) or []
+    return [row for row in rows if can_access_record(row, context, collection)]
 
 
 def get_record(collection: str, record_id: str) -> dict | None:
-    """Return a single record if RLS allows access."""
+    """Return a single record if the current user may access it."""
+    context = _require_auth_context()
     client = _require_supabase("get_record", collection)
-    response = client.table(collection).select("*").eq("id", record_id).limit(1).execute()
+    query = _apply_read_scope(
+        client.table(collection).select("*").eq("id", record_id).limit(1),
+        collection,
+        context,
+    )
+    response = query.execute()
     row = response_data(response, [])
     if not row:
         return None
-    return row[0]
+    record = row[0]
+    if not can_access_record(record, context, collection):
+        return None
+    return record
 
 
 def create_record(collection: str, payload: dict) -> dict:
@@ -125,23 +179,38 @@ def create_record(collection: str, payload: dict) -> dict:
 
 
 def update_record(collection: str, record_id: str, updates: dict) -> dict | None:
-    """Update an existing record if RLS allows access."""
+    """Update an existing record if the current user may access it."""
+    context = _require_auth_context()
     client = _require_supabase("update_record", collection)
     patch = {**_sanitize_update_patch(updates), "updated_at": datetime.now(timezone.utc).isoformat()}
-    response = client.table(collection).update(patch).eq("id", record_id).execute()
+    query = _apply_read_scope(
+        client.table(collection).update(patch).eq("id", record_id),
+        collection,
+        context,
+    )
+    response = query.execute()
     data = response_data(response, [])
-    if data:
-        return data[0]
-    return None
+    if not data:
+        return None
+    record = data[0]
+    if not can_access_record(record, context, collection):
+        return None
+    return record
 
 
 def delete_records(collection: str, record_ids: list[str] | None = None) -> int:
     """Delete records visible to the current user."""
+    context = _require_auth_context()
     client = _require_supabase("delete_records", collection)
     if record_ids:
         deleted = 0
         for record_id in record_ids:
-            client.table(collection).delete().eq("id", record_id).execute()
+            query = _apply_read_scope(
+                client.table(collection).delete().eq("id", record_id),
+                collection,
+                context,
+            )
+            query.execute()
             deleted += 1
         return deleted
     rows = list_records(collection)

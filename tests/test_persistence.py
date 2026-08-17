@@ -44,6 +44,9 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
             self._filters[field] = value
             return self
 
+        def or_(self, _filter):
+            return self
+
         def order(self, _col, desc=False):
             self._order_desc = desc
             return self
@@ -427,6 +430,10 @@ class TestSupabaseRequired:
             def select(self, _f="*"):
                 return self
             def order(self, _c, desc=False):
+                return self
+            def eq(self, *_args, **_kwargs):
+                return self
+            def or_(self, _filter):
                 return self
             def execute(self):
                 raise RuntimeError("timeout")

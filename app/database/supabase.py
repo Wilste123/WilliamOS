@@ -1,9 +1,25 @@
+import base64
+import json
 import os
 
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
 load_dotenv()
+
+
+def _decode_jwt_role(token: str) -> str | None:
+    try:
+        parts = (token or "").split(".")
+        if len(parts) < 2:
+            return None
+        payload = parts[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+        role = data.get("role")
+        return str(role) if role is not None else None
+    except (ValueError, json.JSONDecodeError):
+        return None
 
 
 def _get_supabase_url() -> str | None:
@@ -44,6 +60,11 @@ def get_authenticated_client(access_token: str, refresh_token: str) -> Client:
     token = (access_token or "").strip()
     if token.count(".") < 2:
         raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
+    if _decode_jwt_role(token) == "service_role":
+        raise RuntimeError(
+            "SUPABASE_ANON_KEY must be the anon key, not the service role key. "
+            "Service role bypasses row-level security."
+        )
     if not (refresh_token or "").strip():
         raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
     try:

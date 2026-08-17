@@ -37,6 +37,9 @@ def _make_fake_supabase(records_by_collection: dict | None = None):
             self._filters[field] = value
             return self
 
+        def or_(self, _filter):
+            return self
+
         def order(self, _col, desc=False):
             self._order_desc = desc
             return self
@@ -146,7 +149,17 @@ class TestDocumentIntelligence:
 
     def test_suggests_asset_link(self, monkeypatch):
         store = {
-            "assets": [{"id": "asset-1", "name": "Mazda 3", "status": "active"}],
+            "assets": [
+                {
+                    "id": "asset-1",
+                    "name": "Mazda 3",
+                    "status": "active",
+                    "user_id": "user-test",
+                    "household_id": "household-test",
+                    "visibility": "household",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                }
+            ],
             "documents": [],
         }
         _patch_supabase(monkeypatch, _make_fake_supabase(store))
