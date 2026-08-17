@@ -40,4 +40,4 @@ Next.js proxies `/api/*` to `localhost:8000` on your Mac, so the phone never tal
 | Backend unreachable | Ensure FastAPI runs on Mac; check `API_PROXY_URL` in `web/.env.local` |
 | CORS errors (two tunnels) | Add ngrok frontend URL to `CORS_ORIGINS` in `.env` |
 
-See also [Nextstep.md](../Nextstep.md) §2b.
+See [docs/GETTING-STARTED.md](../docs/GETTING-STARTED.md) for setup.

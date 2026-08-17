@@ -13,7 +13,7 @@ Run this **after** you hit 5+ days/week for 30 days on Mini-jarv.
 - Homeowners with a cabin OR boat (you already model these as assets)
 - Pain: forgotten maintenance, insurance chaos, no single place for house docs
 
-## Pricing (from STARTUP_BIBLE)
+## Pricing (from PRODUCT-VISION)
 
 | Plan | Price |
 |------|-------|

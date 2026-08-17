@@ -1,120 +1,79 @@
-# WilliamOS
+# Mini-jarv (WilliamOS)
 
-WilliamOS er en personlig AI-assistent og prototypen til HouseOS, LifeOS og self-evolve.
+Personal Chief of Staff — a daily-use app for tasks, assets, inbox capture, and AI chat.
 
-Målet er å bygge en mini-Jarvis som kan brukes daglig til å holde oversikt over oppgaver, prosjekter, eiendeler, dokumenter og beslutninger.
+**WilliamOS** → **HouseOS** → **LifeOS**. See [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md).
 
-## Konsept
+---
 
-- **WilliamOS** = personlig PA-agent og testlab
-- **HouseOS** = første eksterne produkt, med bolig, dokumenter og eiendeler
-- **LifeOS** = langsiktig visjon, et operativsystem for alt man eier og må følge opp
-- **self-evolve** = motoren som logger brukerbehov og foreslår nye funksjoner
+## Stack
 
-## Teknologi
+| Layer | Tech | Path |
+|-------|------|------|
+| Production UI | Next.js 15, React, Tailwind | `web/` |
+| API | FastAPI | `app/api/` |
+| Brain | Python services + PA agent | `app/services/`, `app/agents/` |
+| Data | Supabase (Postgres, Auth, Storage) | `migrations/` |
+| AI | OpenAI tool-calling | `app/agents/pa_agent.py` |
+| Lab UI | Streamlit (dev only) | `frontend/` |
 
-- Python
-- FastAPI
-- Streamlit
-- Supabase
-- OpenAI API
-- pgvector senere
+---
 
-## Første milepæl
-
-Bruk systemet daglig i 30 dager.
-
-Hvis du faktisk bruker det, bygger vi videre.
-Hvis du ikke bruker det, forenkler vi.
-
-## Kom i gang
-
-1. Kopier `.env.example` til `.env`
-2. Legg inn API-nøkler for OpenAI og Supabase
-3. Installer avhengigheter
-4. Kjør Streamlit eller FastAPI
-
-Påkrevde miljøvariabler:
+## Quick start
 
 ```bash
-OPENAI_API_KEY=...
-SUPABASE_URL=...
-SUPABASE_KEY=...
-DOCUMENTS_BUCKET=documents
-```
-
-`DOCUMENTS_BUCKET` er valgfri og bruker `documents` som standard hvis den ikke er satt. Hvis Supabase ikke er konfigurert riktig, feiler appen tydelig i stedet for å bruke lokal fallback.
-
-```bash
+cp .env.example .env          # add OpenAI + Supabase keys
 pip install -r requirements.txt
-python run.py
+uvicorn app.api.main:app --reload --port 8000   # terminal 1
+
+cd web && npm install && npm run dev             # terminal 2
 ```
 
-eller:
+Open http://localhost:3000 — create account, land on **Hjem**.
+
+Full setup: **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**
+
+---
+
+## MVP scope (Mini-jarv)
+
+Daily-use modules: **Hjem · Chat · Inbox · Oppgaver · Eiendeler · Minne · Innstillinger**
+
+Details: [MVP-FOCUS.md](MVP-FOCUS.md)
+
+**Rule:** Use it daily for 7 days without Streamlit. If you don't use it, simplify — don't add features.
+
+---
+
+## Docs
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Setup, migrations, run locally |
+| [MVP-FOCUS.md](MVP-FOCUS.md) | Current MVP scope and definition of done |
+| [docs/SEVEN-DAY-TEST.md](docs/SEVEN-DAY-TEST.md) | Daily-use validation gate |
+| [docs/IPHONE-TEST.md](docs/IPHONE-TEST.md) | ngrok + PWA on iPhone |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Fly.io + Vercel deploy |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Developer reference |
+| [docs/ARCHITECTURE-vision.md](docs/ARCHITECTURE-vision.md) | Target architecture |
+| [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md) | LifeOS / HouseOS vision |
+
+---
+
+## Architecture rule
+
+```
+web/ → FastAPI → app/services/ → Supabase / OpenAI
+```
+
+Frontend never calls Supabase or OpenAI directly. All business logic lives in Python services.
+
+---
+
+## Scripts
 
 ```bash
-streamlit run frontend/streamlit_app.py
+scripts/smoke_test.sh      # pytest + health checks
+scripts/seed_demo_data.py  # demo assets/tasks/inbox
+scripts/start-dev.sh       # dev server instructions
 ```
-
-eller:
-
-```bash
-uvicorn app.api.main:app --reload
-```
-
-## Hva som er bygget nå
-
-- Inbox for å fange opp nye ting brukeren vurderer eller må følge opp
-- Dashboard med prioriteringer, hendelser, dokumenter og aktivitet
-- Asset-first visning med eiendeler, prosjekter, oppgaver og beslutninger
-- Timeline/historikk via hendelser som bygges automatisk når data opprettes
-- Supabase som eneste lagringslag — operasjoner feiler tydelig hvis Supabase ikke er konfigurert
-- Dokumenter lagres i Supabase Storage-bucketen konfigurert via `DOCUMENTS_BUCKET` (standard: `documents`)
-- Chat som kan utføre enkle handlinger direkte, som å opprette oppgave, eiendel, prosjekt eller beslutning
-
-## Supabase Storage-oppsett for dokumenter
-
-Opprett en bucket i Supabase Storage med navnet du bruker i `DOCUMENTS_BUCKET` (standard: `documents`).
-
-- Servernøkkelen eller nøkkelen appen bruker må ha tilgang til å laste opp, lese, liste og slette objekter i bucketen.
-- Hvis du bruker RLS/policies for Storage, legg til policies som tillater disse operasjonene for rollen knyttet til `SUPABASE_KEY`.
-
-Migrasjonsnotat: dokumentenes `storage_path` peker nå til objektstien i Supabase Storage, ikke til en lokal filsti på disk.
-
-## Foreslått rekkefølge
-
-1. Chat
-2. Oppgaver
-3. Prosjekter
-4. Eiendeler
-5. Dokumenter
-6. Requests-logg
-7. Første HouseOS-modul
-8. self-evolve dashboard
-
-## Arkitektur
-
-WilliamOS er strukturert i fire lag for å gjøre det enkelt å migrere bort fra Streamlit til en mer tilpasset webapp senere.
-
-```
-frontend/           ← UI-lag (Streamlit-spesifikt)
-  streamlit_app.py  ← tynn entrypoint: konfig + navigasjon + dispatch
-  ui/               ← én render_<side>() per side
-  components/       ← gjenbrukbare Streamlit-hjelpere
-
-app/services/       ← service-lag (ingen Streamlit-imports)
-app/agents/         ← agent-lag (ingen Streamlit-imports)
-app/database/       ← infrastruktur-lag (Supabase, OpenAI)
-app/models/         ← rene datamodeller
-app/api/            ← FastAPI-entrypoint (parallelt med UI-laget)
-```
-
-**Importretningsregel:** `frontend/ → app/services/ → app/database/`.
-Importer går bare nedover — aldri oppover.
-
-Se [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for full dokumentasjon,
-inkludert hvordan du legger til nye funksjoner uten å koble deg til Streamlit.
-
-## Viktig regel
-
-Dette skal ikke bli komplisert for tidlig. Første versjon skal bare være nyttig nok til at den brukes hver dag.

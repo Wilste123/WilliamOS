@@ -34,9 +34,6 @@ export const MVP_HIDDEN_NAV: Omit<NavItem, "icon">[] = [
   { href: "/self-evolve", label: "self-evolve" },
 ];
 
-/** @deprecated Use MVP_PRIMARY_NAV + MVP_SECONDARY_NAV */
-export const NAV_ITEMS: NavItem[] = [...MVP_PRIMARY_NAV, ...MVP_SECONDARY_NAV];
-
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === "/home") return pathname === "/home";
   return pathname === href || pathname.startsWith(`${href}/`);

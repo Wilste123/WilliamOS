@@ -41,7 +41,3 @@ export function clearSession(): void {
 export function logout(): void {
   clearSession();
 }
-
-export function isAuthenticated(): boolean {
-  return getSession() !== null;
-}

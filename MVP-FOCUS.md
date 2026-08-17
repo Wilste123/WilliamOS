@@ -11,10 +11,10 @@ Build and test a **small, excellent** daily-use app — not the full WilliamOS p
 **Core loop:**
 
 1. Open app → see **Hjem** summary + ukens brief  
-2. **Chat** with your PA (streaming, quick actions, session history)  
+2. **Chat** with your PA (streaming, quick actions, persistent history)  
 3. Capture in **Inbox** → apply AI suggestions  
-4. Track **Oppgaver** (create, complete, edit) and **Eiendeler** (create, edit, net worth)  
-5. Adjust **Innstillinger** (assistant name)
+4. Track **Oppgaver** (create, complete, edit) and **Eiendeler** (create, edit, detail, net worth)  
+5. Adjust **Innstillinger** (assistant name, usage stats)
 
 ---
 
@@ -26,20 +26,23 @@ Build and test a **small, excellent** daily-use app — not the full WilliamOS p
 | Chat | `/chat` | Streaming PA, quick actions, document source chips |
 | Inbox | `/inbox` | Capture + apply suggestion cards |
 | Oppgaver | `/tasks` | Create, complete, edit tasks |
-| Eiendeler | `/assets` | Create, edit assets (feeds net worth) |
-| Innstillinger | `/settings` | Assistant name |
+| Eiendeler | `/assets` | Create, edit, detail page with tasks/docs/timeline |
+| Minne | `/memory` | Save facts for PA context |
+| Innstillinger | `/settings` | Assistant name, 7-day usage stats |
 
 **Brand:** Mini-jarv (PWA icons in `web/public/`)
 
-**Navigation:** Lucide icons · Mobile bottom bar: Hjem · Chat · Inbox · Oppgaver · Mer
+**Navigation:** Mobile bottom bar: Hjem · Chat · Inbox · Oppgaver · Mer (Eiendeler, Minne, Innstillinger)
 
 ---
 
-## Hidden during MVP (lab only)
+## Hidden during MVP (lab / dev routes)
 
-Dashboard, Prosjekter, Beslutninger, Hendelser, Dokumenter, Timeline, Minne, self-evolve
+Dashboard, Prosjekter, Beslutninger, Hendelser, Dokumenter (list page), Timeline, self-evolve
 
-Use **Streamlit** for full module access during development.
+These routes exist for development. Document upload is available on asset detail and `/documents`.
+
+Use **Streamlit** for fuller forms during development if Next.js gaps block daily use.
 
 ---
 
@@ -50,14 +53,27 @@ Use **Streamlit** for full module access during development.
 - [ ] Chat streams with quick actions  
 - [ ] Inbox capture + apply suggestions works  
 - [ ] Task create + complete + edit works  
-- [ ] Asset create + edit updates Hjem net worth  
+- [ ] Asset create + edit + detail updates Hjem net worth  
+- [ ] Document upload works (asset detail or documents page)  
 - [ ] Assistant name saves in settings  
 - [ ] You use it daily for 7 days without Streamlit for core tasks  
 
+See [docs/SEVEN-DAY-TEST.md](docs/SEVEN-DAY-TEST.md) for the daily ritual.
+
 ---
 
-## Next session priorities
+## Completed (recent)
 
-1. Asset detail page (`GET /assets/{id}`)  
-2. Re-enable Dashboard or merge into Hjem  
-3. Documents upload in Next.js  
+- Asset detail page (`GET /assets/{id}`)
+- Document upload in Next.js
+- Persistent chat history
+- Usage tracking for 7-day test
+- Smarter inbox (LLM + rule fallback)
+
+---
+
+## Next after 7-day pass
+
+1. Deploy (see [docs/DEPLOY.md](docs/DEPLOY.md))
+2. HouseOS beta ([docs/HOUSEOS-BETA.md](docs/HOUSEOS-BETA.md))
+3. Re-enable or merge Dashboard into Hjem if weekly brief isn't enough

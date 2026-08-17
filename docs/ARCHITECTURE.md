@@ -12,18 +12,18 @@ WilliamOS is in **prototype phase**. The architecture is intentionally moving to
 
 | Component | Status |
 |-----------|--------|
-| `app/services/`, `app/agents/` | Primary home of business logic — largely UI-agnostic |
+| `app/services/`, `app/agents/` | Primary home of business logic — UI-agnostic |
 | `app/models/` | Domain and data types |
-| `app/database/` | Supabase and external I/O wrappers |
-| `app/api/` | FastAPI exists with partial routes — **not yet sole entry point** |
-| `frontend/` | Streamlit MVP — **temporary**, calls services directly |
-| `web/` | Next.js production frontend — **not built yet** |
+| `app/database/` | Supabase wrappers; schema in `migrations/` |
+| `app/api/` | FastAPI — **primary API** for Next.js (auth, CRUD, chat SSE, usage) |
+| `web/` | Next.js production frontend (Mini-jarv) — **MVP in daily testing** |
+| `frontend/` | Streamlit lab — **temporary**, calls services directly |
 
 **Known prototype shortcuts (not target):**
 
-- Streamlit imports and calls `app/services` without going through FastAPI
-- FastAPI route coverage is incomplete compared to Streamlit pages
-- Streamlit layout is desktop-oriented, not mobile-first production UI
+- Streamlit still calls `app/services` without FastAPI
+- Some modules exist in API + Streamlit but are hidden from MVP nav (projects, decisions, dashboard)
+- Streamlit will be retired after 7-day MVP test passes without it
 
 These are documented gaps, not design goals. See [Migration Plan](#migration-plan).
 
