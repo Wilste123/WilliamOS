@@ -1,33 +1,48 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
 import { ApiError, fetchMe, recordAppOpen } from "@/lib/api";
-import { getSession, logout } from "@/lib/auth";
+import { getSession, logout, type AuthSession } from "@/lib/auth";
 import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
 
 const BOOT_TIMEOUT_MS = 12_000;
 
 type BootState = "loading" | "ready" | "redirecting" | "error";
 
+function sessionDisplayName(session: AuthSession | null): string | null {
+  if (!session) return null;
+  return session.display_name ?? session.email ?? null;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [bootState, setBootState] = useState<BootState>("loading");
-  const [displayName, setDisplayName] = useState<string | null>(null);
+  const session = getSession();
+  const [bootState, setBootState] = useState<BootState>(() =>
+    session ? "ready" : "loading"
+  );
+  const [displayName, setDisplayName] = useState<string | null>(() =>
+    sessionDisplayName(session)
+  );
   const [bootError, setBootError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const hiddenLabRoute = isHiddenRoute(pathname);
+  const bootStartedRef = useRef(false);
+  const usageLoggedRef = useRef(false);
 
   useEffect(() => {
+    if (bootStartedRef.current) return;
+    bootStartedRef.current = true;
+
     let cancelled = false;
 
     async function boot() {
-      const session = getSession();
-      if (!session) {
+      const currentSession = getSession();
+      if (!currentSession) {
         setBootState("redirecting");
         router.replace("/login");
         return;
@@ -49,13 +64,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         setDisplayName(me.display_name ?? me.email);
         setBootState("ready");
-        recordAppOpen().catch(() => undefined);
+        if (!usageLoggedRef.current) {
+          usageLoggedRef.current = true;
+          recordAppOpen().catch(() => undefined);
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           logout();
           setBootState("redirecting");
           router.replace("/login");
+          return;
+        }
+        // Keep shell visible if we already had a cached session — show inline error instead.
+        if (currentSession) {
+          setBootError(
+            err instanceof ApiError
+              ? err.message
+              : "Kunne ikke nå backend. Noen data kan være utdatert."
+          );
+          setBootState("ready");
           return;
         }
         setBootError(
@@ -71,7 +99,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+    // Boot once per mount; optimistic "ready" state avoids flash on navigation remounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (bootState === "redirecting") {
     return (
@@ -192,6 +222,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <main className="mx-auto max-w-3xl px-4 py-4 pb-28 lg:pb-4">
+          {bootError && (
+            <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              {bootError}
+            </p>
+          )}
           {hiddenLabRoute && (
             <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
               Lab-modul (skjult i MVP). Denne siden er ikke en del av test-appen ennå.

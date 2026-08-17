@@ -11,16 +11,29 @@ def _today() -> date:
 
 def record_app_open() -> dict:
     today = _today().isoformat()
-    opens = list_records("usage_log")
-    if not any(entry.get("opened_on") == today for entry in opens):
-        create_record("usage_log", {"opened_on": today})
+    try:
+        opens = list_records("usage_log")
+        if not any(entry.get("opened_on") == today for entry in opens):
+            create_record("usage_log", {"opened_on": today})
+    except Exception:
+        pass
     return get_usage_stats()
 
 
 def get_usage_stats() -> dict:
-    opens = sorted(
-        {entry.get("opened_on") for entry in list_records("usage_log") if entry.get("opened_on")}
-    )
+    try:
+        opens = sorted(
+            {entry.get("opened_on") for entry in list_records("usage_log") if entry.get("opened_on")}
+        )
+    except Exception:
+        return {
+            "days_opened_this_week": 0,
+            "total_opens": 0,
+            "streak_days": 0,
+            "last_opened_at": None,
+            "seven_day_goal_met": False,
+        }
+
     open_dates = [date.fromisoformat(value) for value in opens]
     today = _today()
     week_start = today - timedelta(days=today.weekday())
