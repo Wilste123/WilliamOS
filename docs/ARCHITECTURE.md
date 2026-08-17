@@ -1,126 +1,271 @@
 # WilliamOS — Architecture
 
-## Overview
+This document is the **developer reference** for WilliamOS architecture: current state, target state, layer rules, and how to add features without coupling to UI technology.
 
-WilliamOS uses a four-layer architecture designed so the Streamlit UI can be
-replaced (or supplemented) with a more custom web frontend at low cost.
-
-```
-┌─────────────────────────────────────────┐
-│  UI layer  (frontend/)                  │  ← Streamlit only
-│  streamlit_app.py  +  ui/  + components │
-└────────────────┬────────────────────────┘
-                 │ calls
-┌────────────────▼────────────────────────┐
-│  Service / application layer            │  ← Orchestration, no Streamlit
-│  app/services/action_engine.py          │
-│  app/services/memory_service.py         │
-│  app/services/document_service.py       │
-│  app/services/storage_service.py        │
-│  app/agents/pa_agent.py                 │
-│  app/agents/self_evolve.py              │
-└────────────────┬────────────────────────┘
-                 │ calls
-┌────────────────▼────────────────────────┐
-│  Infrastructure layer                   │  ← External I/O
-│  app/database/supabase.py               │
-│  app/services/openai_service.py         │
-│  app/services/retrieval_service.py      │
-│  app/services/vector_service.py         │
-└─────────────────────────────────────────┘
-
-  app/models/  — pure data models, no I/O
-  app/api/     — FastAPI entrypoint (parallel to the UI layer)
-```
+For product direction and long-term vision, see [`docs/ARCHITECTURE-vision.md`](ARCHITECTURE-vision.md).
 
 ---
 
-## Layer responsibilities
+## Current State
 
-### UI layer (`frontend/`)
+WilliamOS is in **prototype phase**. The architecture is intentionally moving toward a stable target; today’s code reflects partial progress.
+
+| Component | Status |
+|-----------|--------|
+| `app/services/`, `app/agents/` | Primary home of business logic — largely UI-agnostic |
+| `app/models/` | Domain and data types |
+| `app/database/` | Supabase and external I/O wrappers |
+| `app/api/` | FastAPI exists with partial routes — **not yet sole entry point** |
+| `frontend/` | Streamlit MVP — **temporary**, calls services directly |
+| `web/` | Next.js production frontend — **not built yet** |
+
+**Known prototype shortcuts (not target):**
+
+- Streamlit imports and calls `app/services` without going through FastAPI
+- FastAPI route coverage is incomplete compared to Streamlit pages
+- Streamlit layout is desktop-oriented, not mobile-first production UI
+
+These are documented gaps, not design goals. See [Migration Plan](#migration-plan).
+
+---
+
+## Target State
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Clients: Web · PWA · iPhone · Android · Voice (future) │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────┐
+│  Next.js + React + Tailwind + shadcn/ui  (`web/`)        │
+│  Mobile-first · PWA · Capacitor wrapper later            │
+└──────────────────────────┬──────────────────────────────┘
+                           │  HTTPS + Bearer JWT
+┌──────────────────────────▼──────────────────────────────┐
+│  FastAPI  (`app/api/`)  — single public API              │
+│  Auth middleware · OpenAPI · SSE chat                    │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────┐
+│  Application layer  (`app/services/`, `app/agents/`)     │
+│  Action Engine · orchestration · agent suggestions       │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────┐
+│  Domain layer  (`app/models/`)                         │
+│  Pure types and business rules — no I/O                  │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────┐
+│  Infrastructure  (`app/database/`, OpenAI, integrations)│
+└─────────────────────────────────────────────────────────┘
+```
+
+**Target rules:**
+
+- All production clients call **FastAPI only** for application data and AI
+- Frontend never calls OpenAI or Supabase directly
+- Python backend contains all business logic, agent logic, and integrations
+- Streamlit is deleted without rewriting services, domain, or infrastructure
+
+---
+
+## Layer Responsibilities
+
+### Next.js frontend (`web/` — target)
+
+| Responsibility | Detail |
+|----------------|--------|
+| Display | Render modules (Inbox, Chat, Dashboard, Assets, …) |
+| Input | Forms, chat, file pickers |
+| API calls | Fetch/mutate via FastAPI with JWT |
+| Not allowed | Business logic, OpenAI, Supabase data/storage, domain validation |
+
+**Stack:** Next.js, React, Tailwind, shadcn/ui, PWA first, Capacitor later.
+
+### Streamlit frontend (`frontend/` — temporary prototype)
 
 | File / dir | Responsibility |
-|---|---|
-| `streamlit_app.py` | Page config, sidebar navigation, dispatch to page renderers |
-| `ui/<page>.py` | One `render_<page>()` function per page. Streamlit widgets + calls to service layer. |
-| `components/record_helpers.py` | Shared, reusable Streamlit helpers (`build_record_options`, `render_collection`) |
+|------------|----------------|
+| `streamlit_app.py` | Page config, navigation, dispatch |
+| `ui/<page>.py` | One `render_<page>()` per page — widgets + service calls |
+| `components/` | Shared Streamlit helpers |
 
-**Rules:**
-- May import from `app/services` and `app/agents`.
-- Must **not** import from `app/database` directly.
-- Must **not** contain business logic (sorting, filtering, aggregation).
+**Rules (same boundary as target UI):**
 
-### Service / application layer (`app/services/`, `app/agents/`)
+- May call `app/services` and `app/agents` (transitional — target is FastAPI)
+- Must **not** import from `app/database`
+- Must **not** contain business logic
+- Must **not** call OpenAI or Supabase directly
 
-Orchestration functions that are UI-agnostic.  Called by Streamlit today;
-could equally be called by a FastAPI handler, a CLI, or an async worker.
+Streamlit is lab/MVP only. Do not build new long-term features here once `web/` exists.
 
-**Rules:**
-- May import from `app/models` and `app/database`.
-- Must **not** import `streamlit`.
-- Should not import from `frontend/`.
+### API layer (`app/api/`)
 
-### Infrastructure layer (`app/database/`, `app/services/openai_service.py`, …)
+| Responsibility | Detail |
+|----------------|--------|
+| Public interface | All production clients enter here |
+| Auth | Validate Supabase JWT → `UserContext` |
+| Contract | Pydantic request/response models, OpenAPI at `/docs` |
+| Delegation | Handlers call services — no business logic in routes |
 
-Thin wrappers around external services (Supabase, OpenAI).  All external I/O
-lives here.
-
-**Rules:**
-- No business logic.
-- No Streamlit imports.
-- Should raise clear `RuntimeError` when not configured (see `storage_service.py`).
-
-### Models (`app/models/`)
-
-Pure Python dataclasses / type hints.  No I/O, no Streamlit.
-
----
-
-## Import direction rules
+Example routes (target surface grows over time):
 
 ```
-frontend/ → app/services/ → app/database/
-frontend/ → app/agents/  → app/services/
-app/models/ ← (all layers may import)
+GET  /dashboard          GET  /inbox
+GET  /assets             POST /tasks
+POST /chat               POST /chat/stream
+GET  /documents          POST /documents/upload
 ```
 
-Imports must only flow **downward**.  If you find yourself importing a higher
-layer from a lower one, extract the shared concern into `app/models/` or a
-new service.
+**Rule:** No Next.js API routes for application logic. FastAPI is the backend.
+
+### Application layer (`app/services/`, `app/agents/`)
+
+Orchestration and use cases. UI-agnostic — callable from FastAPI, CLI, workers, or (temporarily) Streamlit.
+
+| Area | Examples |
+|------|----------|
+| Action Engine | `create_task`, `apply_inbox_suggestion`, all mutations |
+| Agents | `pa_agent`, document intelligence, self-evolve |
+| Services | storage, memory, retrieval, auth context, profile |
+
+**Rules:**
+
+- May import `app/models` and infrastructure (`app/database/`, OpenAI wrappers)
+- Must **not** import `streamlit` or any frontend code
+- AI suggests; Action Engine executes
+
+### Domain layer (`app/models/`)
+
+Pure Python types — User, Asset, Task, Project, Decision, Event, Document, …
+
+**Rules:** No I/O, no Streamlit, no FastAPI, no OpenAI, no Supabase.
+
+### Infrastructure layer (`app/database/`, OpenAI, future integrations)
+
+Thin wrappers around external systems. Provider changes affect only this layer.
 
 ---
 
-## How to add a new feature
+## Import Rules
 
-1. **Data / logic first** — add a function in `app/services/action_engine.py`
-   (or a new service file) that handles the business logic with no Streamlit
-   imports.
+```
+Allowed:
+  frontend/ (Streamlit)  →  app/services, app/agents     [prototype only]
+  web/ (Next.js)         →  FastAPI (HTTP)
+  app/api/               →  app/services, app/agents, app/models
+  app/services/          →  app/models, app/database, infrastructure
+  app/agents/            →  app/services, app/models
+  app/database/          →  external SDKs (Supabase, OpenAI)
 
-2. **Tests** — add a test in `tests/` that exercises the service function
-   using the `_make_fake_supabase` / `_patch_supabase` helpers.
+Not allowed:
+  app/models/            →  any upper layer
+  app/services/          →  frontend/, web/
+  app/services/          →  streamlit
+  frontend/, web/        →  app/database/
+  frontend/, web/        →  OpenAI directly
+  web/                   →  Supabase data/storage directly
+```
 
-3. **UI last** — add a new `frontend/ui/<feature>.py` file with a single
-   `render_<feature>()` function that calls the service function and presents
-   results via Streamlit widgets.
-
-4. **Wire up** — import and register `render_<feature>` in
-   `frontend/streamlit_app.py`'s `_PAGE_RENDERERS` dict.
-
-When a future web frontend is built (e.g. with React + FastAPI):
-- Steps 1–2 remain identical.
-- Step 3 becomes a React component + FastAPI route instead of a Streamlit page.
-- The service layer is **not touched**.
+Imports flow **downward only**. If a lower layer needs something from above, extract shared code into `app/models/` or a new service.
 
 ---
 
-## Follow-up suggestions for UI modernisation
+## Why Next.js for Production UI
 
-- Replace `st.dataframe` tables with card-style layouts using `st.columns` +
-  `st.container` for a less "Excel-like" feel.
-- Add a custom CSS block in `streamlit_app.py` for consistent typography,
-  spacing, and dark-mode polish.
-- Consider migrating to a FastAPI + React (or Next.js) frontend using the
-  existing service layer as the API backend — the refactored structure makes
-  this straightforward.
-- Introduce Pydantic models in `app/models/` for request/response validation
-  once the FastAPI surface grows.
+| Concern | Streamlit (prototype) | Next.js (target) |
+|---------|----------------------|------------------|
+| Mobile UX | Poor — desktop dashboard patterns | Mobile-first, PWA, touch-native patterns |
+| Design quality | Limited styling | Tailwind + shadcn/ui — premium feel |
+| Product scale | Single-script pages | Component architecture for many modules |
+| Multi-client | Streamlit-only | Same React UI → PWA → Capacitor |
+| Separation | Tends to mix UI and logic | Clear UI/API boundary via FastAPI |
+
+Streamlit proved the concept. Next.js is the production path.
+
+**Alternative:** Vite + React SPA can work for UI-only clients, but WilliamOS standardizes on **Next.js** for routing, layouts, and the PWA → Capacitor roadmap.
+
+---
+
+## Why Capacitor Is Later
+
+Capacitor does not replace React or Next.js. It wraps the **same** web UI as a native shell for App Store / Play Store.
+
+```
+Phase A: Next.js in browser + PWA install
+Phase B: Capacitor wraps identical build → iOS / Android
+```
+
+Build Capacitor only when PWA traction justifies store distribution. Do not maintain a separate native UI codebase.
+
+---
+
+## Migration Plan
+
+| Phase | Goal |
+|-------|------|
+| **1. Thin Streamlit** | UI in `frontend/` calls services only — no logic, no direct OpenAI/Supabase |
+| **2. FastAPI surface** | Expose services via FastAPI; auth middleware; OpenAPI schema |
+| **3. Next.js frontend** | Build `web/` against FastAPI — auth, chat, inbox, dashboard first |
+| **4. Streamlit → lab** | Stop feature development on Streamlit; internal/admin use only |
+| **5. PWA** | Manifest, service worker, mobile navigation in Next.js |
+| **6. Capacitor** | Wrap Next.js for store apps if product traction exists |
+
+Services, domain, and infrastructure should remain stable across all phases.
+
+---
+
+## How to Add a New Feature
+
+Follow this order to avoid UI coupling:
+
+1. **Domain / logic** — add types in `app/models/` and functions in `app/services/` (or Action Engine). No Streamlit, no React.
+
+2. **Tests** — exercise the service in `tests/` using fake Supabase helpers.
+
+3. **API** — add FastAPI route with Pydantic models. Handler delegates to service.
+
+4. **UI last**
+   - **Target:** Next.js feature module in `web/` calling the API
+   - **Prototype only:** Streamlit page in `frontend/ui/` calling the service directly until API exists
+
+5. **Never** put business logic, OpenAI calls, or Supabase queries in frontend code.
+
+---
+
+## Data Model Notes
+
+All user data is scoped with:
+
+```sql
+user_id       UUID NOT NULL
+household_id  UUID
+visibility    TEXT  -- 'private' | 'shared'
+```
+
+RLS in Supabase enforces access. FastAPI uses the user's JWT so the same policies apply server-side.
+
+---
+
+## Deployment (Target)
+
+| Component | Service |
+|-----------|---------|
+| `web/` (Next.js) | Vercel or Cloudflare Pages |
+| `app/api/` (FastAPI) | Fly.io or Railway (EU region) |
+| Database / Auth / Storage | Supabase (eu-north-1) |
+
+---
+
+## Quick Reference
+
+| Question | Answer |
+|----------|--------|
+| Production frontend? | **Next.js** + React + Tailwind + shadcn/ui |
+| Prototype frontend? | Streamlit — temporary |
+| API layer? | **FastAPI** for all clients |
+| Where is the brain? | **Python** — services, agents, Action Engine |
+| Mobile apps? | PWA first, **Capacitor** wrapper later |
+| Can frontend call Supabase? | **No** (auth session only; all data via FastAPI) |
+| Can frontend call OpenAI? | **No** |
