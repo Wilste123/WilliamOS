@@ -1,4 +1,4 @@
-export type NavIconName = "home" | "chat" | "inbox" | "tasks" | "assets" | "settings";
+export type NavIconName = "home" | "chat" | "inbox" | "tasks" | "assets" | "memory" | "settings";
 
 export type NavItem = {
   href: string;
@@ -19,6 +19,7 @@ export const MVP_PRIMARY_NAV: NavItem[] = [
 
 export const MVP_SECONDARY_NAV: NavItem[] = [
   { href: "/assets", label: "Eiendeler", icon: "assets" },
+  { href: "/memory", label: "Minne", icon: "memory" },
   { href: "/settings", label: "Innstillinger", icon: "settings" },
 ];
 
@@ -30,7 +31,6 @@ export const MVP_HIDDEN_NAV: Omit<NavItem, "icon">[] = [
   { href: "/events", label: "Hendelser" },
   { href: "/documents", label: "Dokumenter" },
   { href: "/timeline", label: "Timeline" },
-  { href: "/memory", label: "Minne" },
   { href: "/self-evolve", label: "self-evolve" },
 ];
 

@@ -8,6 +8,7 @@ from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
 from app.api.routes.inbox import router as inbox_router
 from app.api.routes.overview import router as overview_router
+from app.api.routes.usage import router as usage_router
 
 app = FastAPI(
     title="WilliamOS API",
@@ -40,6 +41,7 @@ app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(decisions_router, prefix="/decisions", tags=["decisions"])
 app.include_router(events_router, prefix="/events", tags=["events"])
 app.include_router(memory.router, prefix="/memory", tags=["memory"])
+app.include_router(usage_router, prefix="/usage", tags=["usage"])
 
 
 @app.get("/health")

@@ -303,3 +303,70 @@ export async function captureInbox(text: string) {
     body: JSON.stringify({ text }),
   });
 }
+
+export type AssetDetail = {
+  asset: Record<string, unknown>;
+  tasks: Record<string, unknown>[];
+  open_tasks: Record<string, unknown>[];
+  projects: Record<string, unknown>[];
+  documents: Record<string, unknown>[];
+  decisions: Record<string, unknown>[];
+  events: Record<string, unknown>[];
+};
+
+export async function fetchAssetDetail(assetId: string) {
+  return request<AssetDetail>(`/assets/${assetId}`);
+}
+
+export async function uploadDocument(
+  file: File,
+  options: { assetId?: string; projectId?: string; sourceModule?: string } = {}
+) {
+  const form = new FormData();
+  form.append("file", file);
+  if (options.assetId) form.append("asset_id", options.assetId);
+  if (options.projectId) form.append("project_id", options.projectId);
+  if (options.sourceModule) form.append("source_module", options.sourceModule);
+  return request<Record<string, unknown>>("/documents/upload", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export type ChatHistoryMessage = {
+  id?: string;
+  role: string;
+  content: string;
+  created_at?: string;
+};
+
+export async function fetchChatHistory(limit = 40) {
+  return request<{ messages: ChatHistoryMessage[] }>(`/chat/history?limit=${limit}`);
+}
+
+export async function appendChatHistory(messages: { role: string; content: string }[]) {
+  return request<{ saved: number }>("/chat/history", {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  });
+}
+
+export async function clearChatHistory() {
+  return request<{ cleared: boolean }>("/chat/history", { method: "DELETE" });
+}
+
+export type UsageStats = {
+  days_opened_this_week: number;
+  total_opens: number;
+  streak_days: number;
+  last_opened_at: string | null;
+  seven_day_goal_met: boolean;
+};
+
+export async function recordAppOpen() {
+  return request<UsageStats>("/usage/open", { method: "POST" });
+}
+
+export async function fetchUsageStats() {
+  return request<UsageStats>("/usage");
+}

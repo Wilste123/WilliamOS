@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
-import { fetchMe } from "@/lib/api";
+import { fetchMe, recordAppOpen } from "@/lib/api";
 import { getSession, logout } from "@/lib/auth";
 import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
 
@@ -28,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .then((me) => {
         setDisplayName(me.display_name ?? me.email);
         setReady(true);
+        recordAppOpen().catch(() => undefined);
       })
       .catch(() => {
         logout();

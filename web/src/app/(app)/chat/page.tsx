@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 
-import { fetchMe, streamChat, type ChatStreamEvent } from "@/lib/api";
+import { fetchMe, streamChat, fetchChatHistory, appendChatHistory, type ChatStreamEvent } from "@/lib/api";
 
 type Message = {
   role: "user" | "assistant";
@@ -34,6 +34,15 @@ function loadStoredMessages(): Message[] {
   }
 }
 
+function toMessages(rows: { role: string; content: string }[]): Message[] {
+  return rows
+    .filter((row) => row.role === "user" || row.role === "assistant")
+    .map((row) => ({
+      role: row.role as "user" | "assistant",
+      content: row.content,
+    }));
+}
+
 function ChatPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +56,15 @@ function ChatPageInner() {
   const bootstrapped = useRef(false);
 
   useEffect(() => {
-    setMessages(loadStoredMessages());
+    fetchChatHistory()
+      .then(({ messages }) => {
+        if (messages.length > 0) {
+          setMessages(toMessages(messages));
+          return;
+        }
+        setMessages(loadStoredMessages());
+      })
+      .catch(() => setMessages(loadStoredMessages()));
     fetchMe().then((me) => setAssistantName(me.assistant_name ?? "Mini-jarv"));
   }, []);
 
@@ -120,6 +137,14 @@ function ChatPageInner() {
           ...nextMessages,
           { role: "assistant", content: "Ingen respons fra assistenten." },
         ]);
+      } else if (assistant) {
+        const finalMessages: Message[] = [
+          ...nextMessages,
+          { role: "assistant", content: assistant, sources },
+        ];
+        appendChatHistory(
+          finalMessages.slice(-2).map((m) => ({ role: m.role, content: m.content }))
+        ).catch(() => undefined);
       }
     } catch {
       setMessages([

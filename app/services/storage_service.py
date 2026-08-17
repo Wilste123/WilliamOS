@@ -18,6 +18,7 @@ DEFAULT_VISIBILITY = {
     "memory_items": "private",
     "requests_log": "private",
     "chat_history": "private",
+    "usage_log": "private",
 }
 
 
@@ -98,6 +99,23 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
     if data:
         return data[0]
     return None
+
+
+def delete_records(collection: str, record_ids: list[str] | None = None) -> int:
+    """Delete records in *collection*. If *record_ids* is omitted, delete all visible rows."""
+    client = _require_supabase("delete_records", collection)
+    if record_ids:
+        deleted = 0
+        for record_id in record_ids:
+            client.table(collection).delete().eq("id", record_id).execute()
+            deleted += 1
+        return deleted
+    rows = list_records(collection)
+    deleted = 0
+    for row in rows:
+        client.table(collection).delete().eq("id", row["id"]).execute()
+        deleted += 1
+    return deleted
 
 
 def append_event(

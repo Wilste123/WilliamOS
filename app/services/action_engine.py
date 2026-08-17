@@ -1,7 +1,12 @@
+import json
+import logging
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
+from app.services.openai_service import chat_completion
 from app.services.storage_service import append_event, create_record, get_record, list_records, update_record
+
+logger = logging.getLogger(__name__)
 
 
 def create_asset(payload: dict) -> dict:
@@ -176,35 +181,46 @@ def create_event(payload: dict) -> dict:
     return create_record("events", payload)
 
 
-def capture_inbox_entry(text: str) -> dict:
+def _parse_amount_from_text(text: str) -> float | None:
     lowered = text.lower()
-    amount = None
     _, separator, amount_tail = lowered.partition(" til ")
-    if separator:
-        raw_amount = []
-        started = False
-        for char in amount_tail:
-            if char.isdigit():
-                raw_amount.append(char)
-                started = True
-                continue
-            if char in {" ", "."} and started:
-                raw_amount.append(char)
-                continue
-            if started:
-                break
-        cleaned_amount = "".join(raw_amount).replace(" ", "").replace(".", "")
-        amount = cleaned_amount or None
+    if not separator:
+        return None
+    raw_amount = []
+    started = False
+    for char in amount_tail:
+        if char.isdigit():
+            raw_amount.append(char)
+            started = True
+            continue
+        if char in {" ", "."} and started:
+            raw_amount.append(char)
+            continue
+        if started:
+            break
+    cleaned_amount = "".join(raw_amount).replace(" ", "").replace(".", "")
+    if not cleaned_amount:
+        return None
+    try:
+        return float(cleaned_amount)
+    except ValueError:
+        return None
+
+
+def _rule_based_inbox_suggestions(text: str) -> list[dict]:
+    lowered = text.lower()
+    amount = _parse_amount_from_text(text)
     suggestions = []
 
-    if "kjøp" in lowered or "kjøpe" in lowered:
+    if "kjøp" in lowered or "kjøpe" in lowered or "vurderer" in lowered:
+        asset_name = text[: lowered.find(" til ")].strip() if " til " in lowered else text.strip()
         suggestions.append(
             {
                 "object_type": "asset",
                 "fields": {
-                    "name": text[: lowered.find(" til ")].strip() if " til " in lowered else text.strip(),
+                    "name": asset_name,
                     "status": "considering_purchase",
-                    "estimated_value": float(amount) if amount else None,
+                    "estimated_value": amount,
                 },
             }
         )
@@ -219,7 +235,7 @@ def capture_inbox_entry(text: str) -> dict:
             }
         )
 
-    if any(keyword in lowered for keyword in ["må", "skal", "trenger", "oppgave"]):
+    if any(keyword in lowered for keyword in ["må", "skal", "trenger", "oppgave", "service", "bestille"]):
         suggestions.append(
             {
                 "object_type": "task",
@@ -230,6 +246,50 @@ def capture_inbox_entry(text: str) -> dict:
                 },
             }
         )
+
+    return suggestions
+
+
+def _llm_inbox_suggestions(text: str) -> list[dict]:
+    prompt = (
+        "Du klassifiserer innboksfangst for en personlig assistent. "
+        "Returner KUN gyldig JSON med nøkkelen suggestions. "
+        "Hver suggestion har object_type (asset, task, decision) og fields. "
+        "For asset: name, status (considering_purchase/active), estimated_value (number eller null). "
+        "For task: title, priority (1-3), status (open). "
+        "For decision: title, summary, status (open)."
+    )
+    raw = chat_completion(
+        [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": text},
+        ],
+        temperature=0.1,
+    )
+    if not raw or "OpenAI er ikke konfigurert" in raw or "OpenAI-kallet feilet" in raw:
+        return []
+
+    try:
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+        payload = json.loads(raw[start:end]) if start >= 0 and end > start else {}
+        suggestions = payload.get("suggestions", [])
+        if isinstance(suggestions, list):
+            return [item for item in suggestions if isinstance(item, dict) and item.get("object_type")]
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("LLM inbox parse failed: %s", exc)
+    return []
+
+
+def _build_inbox_suggestions(text: str) -> list[dict]:
+    llm_suggestions = _llm_inbox_suggestions(text)
+    if llm_suggestions:
+        return llm_suggestions
+    return _rule_based_inbox_suggestions(text)
+
+
+def capture_inbox_entry(text: str) -> dict:
+    suggestions = _build_inbox_suggestions(text)
 
     inbox_item = create_record(
         "inbox_items",
@@ -320,14 +380,31 @@ def build_weekly_brief() -> dict:
     dashboard = build_dashboard_summary()
     decisions = list_records("decisions")
     open_decisions = [d for d in decisions if d.get("status") != "decided"][:5]
+    assets = list_records("assets")
+    net_worth_nok = sum(float(asset.get("estimated_value") or 0) for asset in assets)
+    today = date.today().isoformat()
+
+    open_tasks = [task for task in list_records("tasks") if not task.get("completed")]
+    overdue_tasks = [
+        task
+        for task in open_tasks
+        if task.get("due_date") and str(task.get("due_date"))[:10] < today
+    ][:5]
 
     lines = ["📋 Ukens brief", ""]
     metrics = dashboard["metrics"]
     lines.append(
+        f"Formue: {format_net_worth_nok(net_worth_nok) if net_worth_nok else '—'}. "
         f"Du har {metrics['open_tasks']} åpne oppgaver, "
         f"{metrics['projects']} aktive prosjekter og "
         f"{metrics['open_decisions']} åpne beslutninger."
     )
+
+    if overdue_tasks:
+        lines.append("\n**Forfalt — gjør først:**")
+        for task in overdue_tasks:
+            due = f" (frist: {str(task.get('due_date'))[:10]})"
+            lines.append(f"- {task['title']}{due}")
 
     if dashboard["priorities"]:
         lines.append("\n**Prioriterte oppgaver:**")
@@ -357,6 +434,9 @@ def build_weekly_brief() -> dict:
     return {
         "summary_text": "\n".join(lines),
         "priorities": dashboard["priorities"],
+        "overdue_tasks": overdue_tasks,
+        "net_worth_nok": net_worth_nok,
+        "net_worth_formatted": format_net_worth_nok(net_worth_nok) if net_worth_nok else "—",
         "active_projects": dashboard["active_projects"],
         "open_decisions": open_decisions,
         "upcoming_events": dashboard["upcoming_events"],

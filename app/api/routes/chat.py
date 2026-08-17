@@ -1,10 +1,15 @@
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.agents.pa_agent import ask_agent, ask_agent_stream
 from app.api.deps import get_current_user
+from app.services.chat_history_service import (
+    append_chat_messages,
+    clear_chat_messages,
+    list_chat_messages,
+)
 from app.services.memory_service import save_memory
 from app.agents.self_evolve import analyze_requests
 
@@ -21,6 +26,10 @@ class MemoryRequest(BaseModel):
     value: str
     key: str | None = None
     category: str | None = None
+
+
+class ChatHistoryAppendRequest(BaseModel):
+    messages: list[dict] = Field(default_factory=list)
 
 
 def _sse(payload: dict) -> str:
@@ -69,3 +78,20 @@ def remember(request: MemoryRequest):
 @router.get("/self-evolve")
 def self_evolve_status():
     return analyze_requests()
+
+
+@router.get("/history")
+def chat_history(limit: int = Query(40, ge=1, le=100)):
+    return {"messages": list_chat_messages(limit)}
+
+
+@router.post("/history")
+def save_chat_history(request: ChatHistoryAppendRequest):
+    saved = append_chat_messages(request.messages)
+    return {"saved": saved}
+
+
+@router.delete("/history")
+def delete_chat_history():
+    clear_chat_messages()
+    return {"cleared": True}

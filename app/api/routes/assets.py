@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
 from app.models.asset import AssetCreate, AssetUpdate
-from app.services.action_engine import create_asset as create_asset_record, update_asset
+from app.services.action_engine import (
+    create_asset as create_asset_record,
+    get_asset_detail,
+    update_asset,
+)
 from app.services.storage_service import list_records
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -11,6 +15,14 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 @router.get("")
 def list_assets():
     return list_records("assets")
+
+
+@router.get("/{asset_id}")
+def read_asset(asset_id: str):
+    detail = get_asset_detail(asset_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return detail
 
 
 @router.post("")
