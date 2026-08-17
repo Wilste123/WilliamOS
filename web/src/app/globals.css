@@ -11,6 +11,7 @@
 }
 
 body {
+  margin-top: auto;
   color: var(--foreground);
   background: var(--background);
   font-family: system-ui, -apple-system, sans-serif;

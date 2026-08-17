@@ -3,13 +3,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WilliamOS",
+  title: "Mini-jarv",
   description: "Personal Chief of Staff",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "WilliamOS",
+    title: "Mini-jarv",
   },
 };
 
