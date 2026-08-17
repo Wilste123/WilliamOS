@@ -29,6 +29,10 @@ export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+export function logout(): void {
+  clearSession();
+}
+
 export function isAuthenticated(): boolean {
   return getSession() !== null;
 }

@@ -12,13 +12,13 @@ export default function AssetsPage() {
     <RecordListPage
       title="Eiendeler"
       description="Boliger, kjøretøy, båter og andre eiendeler."
-      path="/assets/"
+      path="/assets"
       fields={["name", "type", "status", "estimated_value"]}
       emptyLabel="Ingen eiendeler ennå. Opprett den første over — verdien vises på Hjem."
       refreshKey={refreshKey}
     >
       <CreateRecordForm
-        path="/assets/"
+        path="/assets"
         submitLabel="Opprett eiendel"
         extraPayload={{ status: "active" }}
         fields={[

@@ -13,11 +13,11 @@ class InboxRequest(BaseModel):
     text: str
 
 
-@router.get("/")
+@router.get("")
 def list_inbox_items():
     return list_records("inbox_items")
 
 
-@router.post("/")
+@router.post("")
 def capture_inbox(request: InboxRequest):
     return capture_inbox_entry(request.text)

@@ -27,7 +27,7 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-@router.post("/")
+@router.post("")
 def chat(request: ChatRequest):
     answer, sources = ask_agent(
         request.message,

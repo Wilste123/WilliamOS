@@ -8,12 +8,12 @@ from app.services.storage_service import list_records
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-@router.get("/")
+@router.get("")
 def list_tasks():
     return list_records("tasks")
 
 
-@router.post("/")
+@router.post("")
 def create_task(task: TaskCreate):
     return create_task_record(task.model_dump(mode="json"))
 

@@ -8,12 +8,12 @@ from app.services.storage_service import list_records
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-@router.get("/")
+@router.get("")
 def list_assets():
     return list_records("assets")
 
 
-@router.post("/")
+@router.post("")
 def create_asset(asset: AssetCreate):
     return create_asset_record(asset.model_dump(mode="json"))
 

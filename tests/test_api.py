@@ -10,7 +10,7 @@ def test_dashboard_requires_auth(client):
 
 
 def test_chat_requires_auth(client):
-    response = client.post("/chat/", json={"message": "Hei"})
+    response = client.post("/chat", json={"message": "Hei"})
     assert response.status_code == 401
 
 

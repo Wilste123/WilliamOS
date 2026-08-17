@@ -12,13 +12,13 @@ export default function TasksPage() {
     <RecordListPage
       title="Oppgaver"
       description="Alle oppgaver i systemet."
-      path="/tasks/"
+      path="/tasks"
       fields={["title", "priority", "due_date", "status"]}
       emptyLabel="Ingen oppgaver ennå. Opprett den første over."
       refreshKey={refreshKey}
     >
       <CreateRecordForm
-        path="/tasks/"
+        path="/tasks"
         submitLabel="Opprett oppgave"
         fields={[
           { name: "title", label: "Tittel", type: "text", required: true, placeholder: "Hva skal gjøres?" },

@@ -418,7 +418,7 @@ class TestDocumentUploadAPI:
         doc_store = _make_store_with_doc("Invoice for boat service: 15 000 NOK")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
 
-        response = authed_client.post("/chat/", json={"message": "boat invoice service", "use_documents": True})
+        response = authed_client.post("/chat", json={"message": "boat invoice service", "use_documents": True})
         assert response.status_code == 200
         body = response.json()
         assert "answer" in body

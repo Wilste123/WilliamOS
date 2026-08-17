@@ -13,6 +13,7 @@ app = FastAPI(
     title="WilliamOS API",
     version="0.2.0",
     description="Public API for WilliamOS clients (Next.js, mobile, voice).",
+    redirect_slashes=False,
 )
 
 _cors_origins = os.getenv(

@@ -114,7 +114,7 @@ export function logout(): void {
 }
 
 export async function sendChat(message: string, history: { role: string; content: string }[] = []) {
-  return request<{ answer: string; sources: unknown[] }>("/chat/", {
+  return request<{ answer: string; sources: unknown[] }>("/chat", {
     method: "POST",
     body: JSON.stringify({ message, history, use_documents: true }),
   });
@@ -256,11 +256,11 @@ export async function fetchHome() {
 }
 
 export async function fetchInbox() {
-  return request<unknown[]>("/inbox/");
+  return request<unknown[]>("/inbox");
 }
 
 export async function captureInbox(text: string) {
-  return request<unknown>("/inbox/", {
+  return request<unknown>("/inbox", {
     method: "POST",
     body: JSON.stringify({ text }),
   });
