@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.deps import get_current_user
 from app.models.decision import DecisionCreate, DecisionUpdate
 from app.services.action_engine import create_decision, update_decision
 from app.services.storage_service import list_records
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.get("/")

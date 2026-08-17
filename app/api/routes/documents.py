@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Form, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Query, UploadFile, File
 
+from app.api.deps import get_current_user
 from app.services.action_engine import create_document
 from app.services.document_storage import save_uploaded_file
 from app.services.retrieval_service import search_documents
 from app.services.storage_service import list_records
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.get("/")

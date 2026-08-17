@@ -374,14 +374,11 @@ class TestAskAgentWithDocuments:
 # ---------------------------------------------------------------------------
 
 class TestDocumentUploadAPI:
-    def test_upload_stores_source_module(self, monkeypatch):
-        from fastapi.testclient import TestClient
-        from app.api.main import app
+    def test_upload_stores_source_module(self, monkeypatch, authed_client):
         fake_client = _patch_supabase(monkeypatch)
         _set_test_context()
 
-        client = TestClient(app)
-        response = client.post(
+        response = authed_client.post(
             "/documents/upload",
             data={"source_module": "projects"},
             files={"file": ("notes.txt", b"Project meeting notes content", "text/plain")},
@@ -393,9 +390,7 @@ class TestDocumentUploadAPI:
         assert body["storage_path"].startswith("household/household-test/projects/")
         assert fake_client.bucket_store["documents"][body["storage_path"]] == b"Project meeting notes content"
 
-    def test_search_endpoint(self, monkeypatch):
-        from fastapi.testclient import TestClient
-        from app.api.main import app
+    def test_search_endpoint(self, monkeypatch, authed_client):
         from app.services import retrieval_service
 
         _patch_supabase(monkeypatch)
@@ -403,16 +398,13 @@ class TestDocumentUploadAPI:
         doc_store = _make_store_with_doc("Annual budget summary for the property portfolio.")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
 
-        client = TestClient(app)
-        response = client.get("/documents/search", params={"q": "budget property"})
+        response = authed_client.get("/documents/search", params={"q": "budget property"})
         assert response.status_code == 200
         body = response.json()
         assert "results" in body
         assert len(body["results"]) >= 1
 
-    def test_chat_endpoint_returns_sources(self, monkeypatch):
-        from fastapi.testclient import TestClient
-        from app.api.main import app
+    def test_chat_endpoint_returns_sources(self, monkeypatch, authed_client):
         from app.agents import pa_agent
         from app.services import retrieval_service
         import app.services.openai_service as oai
@@ -426,8 +418,7 @@ class TestDocumentUploadAPI:
         doc_store = _make_store_with_doc("Invoice for boat service: 15 000 NOK")
         monkeypatch.setattr(retrieval_service, "list_records", lambda _: doc_store["documents"])
 
-        client = TestClient(app)
-        response = client.post("/chat/", json={"message": "boat invoice service", "use_documents": True})
+        response = authed_client.post("/chat/", json={"message": "boat invoice service", "use_documents": True})
         assert response.status_code == 200
         body = response.json()
         assert "answer" in body

@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from app.agents.pa_agent import ask_agent
+from app.api.deps import get_current_user
 from app.services.memory_service import save_memory
 from app.agents.self_evolve import analyze_requests
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class ChatRequest(BaseModel):
