@@ -1,6 +1,8 @@
 import { clearSession, getSession, saveSession, type AuthSession } from "./auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Default /api uses Next.js proxy → FastAPI (works on iPhone via ngrok).
+// Override only if you expose FastAPI on its own public URL.
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
 function parseErrorDetail(payload: unknown): string {
   if (!payload || typeof payload !== "object" || !("detail" in payload)) {
@@ -52,7 +54,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     });
   } catch {
     throw new ApiError(
-      `Kunne ikke nå API på ${API_URL}. Sjekk at FastAPI kjører (uvicorn app.api.main:app --reload --port 8000).`,
+      "Kunne ikke nå backend. Sjekk at FastAPI kjører (uvicorn app.api.main:app --reload --port 8000). " +
+        "På iPhone via ngrok: bruk kun ngrok på port 3000 — ikke localhost:8000.",
       0
     );
   }

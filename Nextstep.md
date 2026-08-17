@@ -30,13 +30,45 @@ DOCUMENTS_BUCKET=documents
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
-**Frontend** (`web/.env.local`):
+**Frontend** (`web/.env.local` — valgfritt):
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
+# Standard: ikke sett NEXT_PUBLIC_API_URL — appen bruker /api (proxy til FastAPI)
+API_PROXY_URL=http://127.0.0.1:8000
 ```
 
 ---
+
+## 2b. Test på iPhone via ngrok
+
+`localhost` på telefonen peker til **telefonen**, ikke Mac-en. Derfor fungerer ikke `http://localhost:8000` fra iPhone.
+
+**Løsning (én ngrok-tunnel):**
+
+1. Start FastAPI og Next.js som normalt (port 8000 + 3000)
+2. Fjern `NEXT_PUBLIC_API_URL=http://localhost:8000` fra `web/.env.local` hvis den finnes
+3. Start ngrok **kun på Next.js**:
+
+```bash
+ngrok http 3000
+```
+
+4. Åpne ngrok-URLen på iPhone
+
+Next.js proxyer `/api/*` → `localhost:8000` på Mac-en. Du trenger **ikke** egen ngrok for port 8000.
+
+**Alternativ (to ngrok-tunneler):**
+
+```bash
+ngrok http 3000   # frontend
+ngrok http 8000   # backend
+```
+
+Sett da `NEXT_PUBLIC_API_URL=https://din-api-url.ngrok-free.app` i `web/.env.local` og legg ngrok-frontend-URL i `CORS_ORIGINS` i `.env`.
+
+---
+
+
 
 ## 3. Start backend (FastAPI)
 
@@ -47,10 +79,12 @@ uvicorn app.api.main:app --reload --port 8000
 
 Sjekk:
 
-- http://localhost:8000/health
-- http://localhost:8000/docs (OpenAPI)
+- [http://localhost:8000/health](http://localhost:8000/health)
+- [http://localhost:8000/docs](http://localhost:8000/docs) (OpenAPI)
 
 ---
+
+
 
 ## 4. Start Next.js frontend
 
@@ -60,11 +94,13 @@ npm install
 npm run dev
 ```
 
-Åpne: http://localhost:3000
+Åpne: [http://localhost:3000](http://localhost:3000)
 
 Første gang: opprett konto eller logg inn. Hvis Supabase krever e-postbekreftelse, bekreft e-post og logg inn — husholdning opprettes automatisk.
 
 ---
+
+
 
 ## 5. Streamlit (prototype / lab)
 
@@ -78,21 +114,29 @@ streamlit run frontend/streamlit_app.py
 
 ---
 
+
+
 ## 6. Hva er bygget nå (Phase 2–3 start)
 
-| Lag | Status |
-|-----|--------|
-| `app/services/auth_core.py` | UI-agnostisk auth (delt av Streamlit + API) |
-| `app/api/deps.py` | JWT auth middleware (`Authorization` + `X-Refresh-Token`) |
-| `app/api/routes/auth.py` | `/auth/login`, `/auth/signup`, `/auth/me` |
-| Alle API-ruter | Krever auth (unntatt `/`, `/health`, `/auth/*`) |
-| `web/` | Next.js + Tailwind, mobile-first layout |
-| Sider | Login, Chat, Inbox, Dashboard |
-| PWA | Grunnleggende manifest (ikoner mangler) |
+
+| Lag                         | Status                                                    |
+| --------------------------- | --------------------------------------------------------- |
+| `app/services/auth_core.py` | UI-agnostisk auth (delt av Streamlit + API)               |
+| `app/api/deps.py`           | JWT auth middleware (`Authorization` + `X-Refresh-Token`) |
+| `app/api/routes/auth.py`    | `/auth/login`, `/auth/signup`, `/auth/me`                 |
+| Alle API-ruter              | Krever auth (unntatt `/`, `/health`, `/auth/*`)           |
+| `web/`                      | Next.js + Tailwind, mobile-first layout                   |
+| Sider                       | Login, Chat, Inbox, Dashboard                             |
+| PWA                         | Grunnleggende manifest (ikoner mangler)                   |
+
 
 ---
 
+
+
 ## 7. Dine neste utviklingssteg (anbefalt rekkefølge)
+
+
 
 ### A. Lokal verifisering (du, nå)
 
@@ -102,12 +146,16 @@ streamlit run frontend/streamlit_app.py
 - [ ] Logg inn og test chat, inbox, dashboard
 - [ ] Verifiser at Streamlit fortsatt fungerer parallelt
 
+
+
 ### B. UI polish (Phase 3)
 
 - [ ] Kjør `npx shadcn@latest init` i `web/` og legg til Button, Input, Card, Sheet
 - [ ] Lag PWA-ikoner (`web/public/icon-192.png`, `icon-512.png`)
 - [ ] Forbedre dashboard-visning (kort, ikke rå JSON)
 - [ ] Legg til settings-side (assistentnavn via API)
+
+
 
 ### C. API utvidelse (Phase 2 fortsettelse)
 
@@ -117,12 +165,16 @@ streamlit run frontend/streamlit_app.py
 - [ ] Tasks / assets / projects CRUD-sider i Next.js
 - [ ] OpenAPI → generert TypeScript-klient (`openapi-typescript`)
 
+
+
 ### D. Deploy (når lokal flyt fungerer)
 
 - [ ] Deploy FastAPI til Fly.io eller Railway (EU)
 - [ ] Deploy Next.js til Vercel
 - [ ] Sett `CORS_ORIGINS` og `NEXT_PUBLIC_API_URL` til prod-URLer
 - [ ] Test PWA «Legg til på hjemskjerm» på iPhone
+
+
 
 ### E. Senere (Phase 5–6)
 
@@ -131,6 +183,8 @@ streamlit run frontend/streamlit_app.py
 - [ ] Fjern eller begrens Streamlit til intern lab
 
 ---
+
+
 
 ## 8. Arkitekturregler å huske
 
@@ -141,22 +195,28 @@ streamlit run frontend/streamlit_app.py
 
 Se også:
 
-- [`docs/ARCHITECTURE-vision.md`](docs/ARCHITECTURE-vision.md) — målarkitektur
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — utviklerreferanse
+- `[docs/ARCHITECTURE-vision.md](docs/ARCHITECTURE-vision.md)` — målarkitektur
+- `[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)` — utviklerreferanse
 
 ---
+
+
 
 ## 9. Feilsøking
 
-| Problem | Løsning |
-|---------|---------|
-| `401` på API-kall | Sjekk at du er innlogget; tokens i localStorage |
-| CORS-feil | Sjekk `CORS_ORIGINS` i `.env` |
-| `assistant_name does not exist` | Kjør assistant_name-migrasjon i Supabase |
-| Chat feiler | Sjekk `OPENAI_API_KEY` og at FastAPI kjører |
-| Next.js bygger ikke | Kjør `npm install` i `web/` |
+
+| Problem                         | Løsning                                         |
+| ------------------------------- | ----------------------------------------------- |
+| `401` på API-kall               | Sjekk at du er innlogget; tokens i localStorage |
+| CORS-feil                       | Sjekk `CORS_ORIGINS` i `.env`                   |
+| `assistant_name does not exist` | Kjør assistant_name-migrasjon i Supabase        |
+| Chat feiler                     | Sjekk `OPENAI_API_KEY` og at FastAPI kjører     |
+| Next.js bygger ikke             | Kjør `npm install` i `web/`                     |
+
 
 ---
+
+
 
 ## 10. Commit / push
 
