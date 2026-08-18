@@ -31,10 +31,11 @@ def client():
 
 @pytest.fixture
 def authed_client(fake_user_context, monkeypatch):
-    monkeypatch.setattr(
-        "app.api.middleware.auth_context.build_context_from_tokens",
-        lambda _access, _refresh: fake_user_context,
-    )
+    def _fake_build(_access, _refresh):
+        set_current_context(fake_user_context)
+        return fake_user_context
+
+    monkeypatch.setattr("app.api.deps.build_context_from_tokens", _fake_build)
     test_client = TestClient(
         app,
         headers={

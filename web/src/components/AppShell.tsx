@@ -18,6 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isClient = useIsClient();
   const session = useClientSession();
   const [bootError, setBootError] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const hiddenLabRoute = isHiddenRoute(pathname);
   const usageLoggedRef = useRef(false);
@@ -28,12 +29,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     if (!session) {
       validatedTokenRef.current = null;
+      setAuthReady(false);
       router.replace("/login");
       return;
     }
 
-    if (validatedTokenRef.current === session.access_token) return;
+    if (validatedTokenRef.current === session.access_token && authReady) return;
     validatedTokenRef.current = session.access_token;
+    setAuthReady(false);
 
     let cancelled = false;
     const timeout = new Promise<never>((_, reject) => {
@@ -50,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     Promise.race([fetchMe(), timeout])
       .then(() => {
         if (cancelled) return;
+        setAuthReady(true);
         setBootError(null);
         if (!usageLoggedRef.current) {
           usageLoggedRef.current = true;
@@ -58,6 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         if (cancelled) return;
+        setAuthReady(false);
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           validatedTokenRef.current = null;
           logout();
@@ -74,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isClient, session, router]);
+  }, [isClient, session, router, authReady]);
 
   if (!isClient) {
     return (
@@ -88,6 +93,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-dvh items-center justify-center text-muted">
         Omdirigerer…
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-muted">
+        Validerer session…
       </div>
     );
   }

@@ -8,6 +8,7 @@ from app.services.auth_context import (
     UserContext,
     clear_refreshed_tokens,
     get_current_context,
+    set_current_context,
     take_refreshed_tokens,
 )
 from app.services.auth_core import build_context_from_tokens
@@ -39,7 +40,9 @@ def get_current_user(
         )
 
     try:
-        return build_context_from_tokens(access_token, x_refresh_token.strip())
+        context = build_context_from_tokens(access_token, x_refresh_token.strip())
+        set_current_context(context)
+        return context
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 

@@ -1,7 +1,35 @@
 from __future__ import annotations
 
+import threading
+import time
+
 from app.database.supabase import get_authenticated_client, get_supabase_anon, response_data
 from app.services.auth_context import UserContext
+
+_refresh_lock = threading.Lock()
+_rotation_cache: dict[str, tuple[str, str, float]] = {}
+_ROTATION_CACHE_TTL_SEC = 30
+
+
+def _cache_token_rotation(old_refresh: str, access_token: str, new_refresh: str) -> None:
+    with _refresh_lock:
+        _rotation_cache[old_refresh] = (
+            access_token,
+            new_refresh,
+            time.monotonic() + _ROTATION_CACHE_TTL_SEC,
+        )
+
+
+def _lookup_token_rotation(old_refresh: str) -> tuple[str, str] | None:
+    with _refresh_lock:
+        entry = _rotation_cache.get(old_refresh)
+        if not entry:
+            return None
+        access_token, new_refresh, expires_at = entry
+        if time.monotonic() > expires_at:
+            _rotation_cache.pop(old_refresh, None)
+            return None
+        return access_token, new_refresh
 
 
 def _raise_auth_error(exc: Exception) -> None:
@@ -15,6 +43,8 @@ def _raise_auth_error(exc: Exception) -> None:
         raise RuntimeError("Bekreft e-posten din før du logger inn.") from exc
     if "already registered" in message.lower() or code == "user_already_exists":
         raise RuntimeError("E-postadressen er allerede registrert.") from exc
+    if "already used" in message.lower():
+        raise RuntimeError("Sesjonen er utløpt. Logg ut og logg inn på nytt.") from exc
     if "403" in message or "Forbidden" in message:
         raise RuntimeError(
             "Supabase autentisering feilet. Sjekk SUPABASE_URL og SUPABASE_ANON_KEY i .env."
@@ -206,6 +236,11 @@ def sign_in(email: str, password: str) -> UserContext:
 
 def build_context_from_tokens(access_token: str, refresh_token: str) -> UserContext:
     """Rebuild UserContext from stored tokens (FastAPI / Next.js clients)."""
+    original_refresh = refresh_token.strip()
+    cached = _lookup_token_rotation(original_refresh)
+    if cached:
+        access_token, refresh_token = cached
+
     client = get_authenticated_client(access_token, refresh_token)
     user = None
 
@@ -218,23 +253,50 @@ def build_context_from_tokens(access_token: str, refresh_token: str) -> UserCont
             _raise_auth_error(exc)
 
     if user is None:
-        try:
-            refreshed = client.auth.refresh_session()
-        except Exception as exc:
-            _raise_auth_error(exc)
+        with _refresh_lock:
+            cached = _lookup_token_rotation(original_refresh)
+            if cached:
+                access_token, refresh_token = cached
+                client = get_authenticated_client(access_token, refresh_token)
+                try:
+                    user_response = client.auth.get_user()
+                    user = user_response.user if user_response else None
+                except Exception as exc:
+                    message = str(getattr(exc, "message", None) or exc).lower()
+                    if "expired" not in message and "invalid jwt" not in message:
+                        _raise_auth_error(exc)
 
-        session = getattr(refreshed, "session", None)
-        user = getattr(refreshed, "user", None)
-        if session is None or user is None:
-            raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
+            if user is None:
+                try:
+                    refreshed = client.auth.refresh_session()
+                except Exception as exc:
+                    message = str(getattr(exc, "message", None) or exc).lower()
+                    if "already used" in message:
+                        recovered = _lookup_token_rotation(original_refresh)
+                        if recovered:
+                            access_token, refresh_token = recovered
+                            client = get_authenticated_client(access_token, refresh_token)
+                            user_response = client.auth.get_user()
+                            user = user_response.user if user_response else None
+                        if user is None:
+                            _raise_auth_error(exc)
+                    else:
+                        _raise_auth_error(exc)
+                else:
+                    session = getattr(refreshed, "session", None)
+                    user = getattr(refreshed, "user", None)
+                    if session is None or user is None:
+                        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.")
 
-        access_token = session.access_token
-        refresh_token = session.refresh_token
-        client.auth.set_session(access_token, refresh_token)
+                    access_token = session.access_token
+                    refresh_token = session.refresh_token or original_refresh
+                    client.auth.set_session(access_token, refresh_token)
+                    client.postgrest.auth(access_token)
+                    _cache_token_rotation(original_refresh, access_token, refresh_token)
 
-        from app.services.auth_context import mark_refreshed_tokens
+                    from app.services.auth_context import mark_refreshed_tokens
 
-        mark_refreshed_tokens(access_token, refresh_token)
+                    mark_refreshed_tokens(access_token, refresh_token)
 
     display_name = _extract_display_name(user)
     household_id = _find_household_id(client, user.id)
