@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { BottomNav } from "@/components/BottomNav";
 import { ApiError, fetchMe, recordAppOpen } from "@/lib/api";
-import { logout } from "@/lib/auth";
+import { getSession, logout } from "@/lib/auth";
 import { APP_NAME, isHiddenRoute } from "@/lib/navigation";
 import { useClientSession, useIsClient } from "@/lib/use-client-session";
 
@@ -23,6 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hiddenLabRoute = isHiddenRoute(pathname);
   const usageLoggedRef = useRef(false);
   const validatedTokenRef = useRef<string | null>(null);
+  const bootInFlightRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isClient) return;
@@ -34,9 +35,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (validatedTokenRef.current === session.access_token && authReady) return;
-    validatedTokenRef.current = session.access_token;
+    const accessToken = session.access_token;
+    if (validatedTokenRef.current === accessToken) return;
+    if (bootInFlightRef.current === accessToken) return;
+
+    bootInFlightRef.current = accessToken;
     setAuthReady(false);
+    setBootError(null);
 
     let cancelled = false;
     const timeout = new Promise<never>((_, reject) => {
@@ -53,6 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     Promise.race([fetchMe(), timeout])
       .then(() => {
         if (cancelled) return;
+        validatedTokenRef.current = getSession()?.access_token ?? accessToken;
         setAuthReady(true);
         setBootError(null);
         if (!usageLoggedRef.current) {
@@ -62,24 +68,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setAuthReady(false);
+        validatedTokenRef.current = null;
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-          validatedTokenRef.current = null;
           logout();
           router.replace("/login");
           return;
         }
+        // Allow app to load so the user sees the error and can retry/log out.
+        setAuthReady(true);
         setBootError(
           err instanceof ApiError
             ? err.message
             : "Kunne ikke nå backend. Noen data kan være utdatert."
         );
+      })
+      .finally(() => {
+        if (bootInFlightRef.current === accessToken) {
+          bootInFlightRef.current = null;
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isClient, session, router, authReady]);
+  }, [isClient, session?.access_token, router]);
 
   if (!isClient) {
     return (
@@ -99,8 +111,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!authReady) {
     return (
-      <div className="flex min-h-dvh items-center justify-center text-muted">
-        Validerer session…
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-muted">Validerer session…</p>
+        {bootError && (
+          <p className="max-w-sm rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {bootError}
+          </p>
+        )}
       </div>
     );
   }
