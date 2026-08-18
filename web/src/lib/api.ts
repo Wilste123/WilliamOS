@@ -4,6 +4,19 @@ import { clearSession, getSession, saveSession, type AuthSession } from "./auth"
 // Override only if you expose FastAPI on its own public URL.
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
+function hasApiErrorDetail(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  if ("detail" in payload) {
+    const detail = (payload as { detail: unknown }).detail;
+    if (typeof detail === "string" && detail.trim()) return true;
+    if (Array.isArray(detail) && detail.length > 0) return true;
+  }
+  if ("message" in payload && typeof (payload as { message: unknown }).message === "string") {
+    return Boolean((payload as { message: string }).message.trim());
+  }
+  return false;
+}
+
 function parseErrorDetail(payload: unknown, status: number): string {
   if (payload && typeof payload === "object") {
     if ("detail" in payload) {
@@ -24,6 +37,9 @@ function parseErrorDetail(payload: unknown, status: number): string {
   }
   if (status === 401) return "Du må logge inn på nytt.";
   if (status === 403) return "Du har ikke tilgang til denne handlingen.";
+  if (status >= 500 && !hasApiErrorDetail(payload)) {
+    return "FastAPI kjører ikke på port 8000. Start: uvicorn app.api.main:app --reload --port 8000";
+  }
   if (status >= 500) return "Backend-feil. Sjekk at migrasjoner er kjørt og at FastAPI kjører.";
   return `Forespørselen feilet (${status})`;
 }

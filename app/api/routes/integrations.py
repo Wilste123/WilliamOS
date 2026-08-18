@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api.deps import CurrentUser, use_user_context
 from app.services.integration_service import (
     connect_manual_provider,
     disconnect_provider,
@@ -11,7 +11,7 @@ from app.services.integration_service import (
     sync_provider,
 )
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter()
 
 
 class GoogleCompleteRequest(BaseModel):
@@ -20,12 +20,14 @@ class GoogleCompleteRequest(BaseModel):
 
 
 @router.get("")
-def list_integrations():
+def list_integrations(user: CurrentUser):
+    use_user_context(user)
     return list_integration_statuses()
 
 
 @router.post("/{provider}/connect")
-def connect_provider(provider: str):
+def connect_provider(provider: str, user: CurrentUser):
+    use_user_context(user)
     try:
         if provider == "google":
             return start_google_connect()
@@ -35,7 +37,8 @@ def connect_provider(provider: str):
 
 
 @router.post("/google/complete")
-def google_complete(body: GoogleCompleteRequest):
+def google_complete(body: GoogleCompleteRequest, user: CurrentUser):
+    use_user_context(user)
     try:
         return finish_google_connect(body.code, body.state)
     except RuntimeError as exc:
@@ -43,12 +46,14 @@ def google_complete(body: GoogleCompleteRequest):
 
 
 @router.post("/{provider}/disconnect")
-def disconnect_integration(provider: str):
+def disconnect_integration(provider: str, user: CurrentUser):
+    use_user_context(user)
     return disconnect_provider(provider)
 
 
 @router.post("/{provider}/sync")
-def sync_integration(provider: str):
+def sync_integration(provider: str, user: CurrentUser):
+    use_user_context(user)
     try:
         return sync_provider(provider)
     except RuntimeError as exc:

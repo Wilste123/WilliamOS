@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import secrets
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,16 @@ SCOPES = (
     "https://www.googleapis.com/auth/calendar.readonly "
     "https://www.googleapis.com/auth/gmail.readonly"
 )
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Use certifi CA bundle (macOS Python often lacks system certs for urllib)."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
 
 
 def _google_configured() -> bool:
@@ -48,15 +59,21 @@ def _http_form(url: str, data: dict) -> dict:
     body = urllib.parse.urlencode(data).encode()
     request = urllib.request.Request(url, data=body, method="POST")
     request.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode())
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+            return json.loads(response.read().decode())
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Kunne ikke kontakte Google: {exc.reason}") from exc
 
 
 def _http_get(url: str, access_token: str) -> dict:
     request = urllib.request.Request(url, method="GET")
     request.add_header("Authorization", f"Bearer {access_token}")
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode())
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+            return json.loads(response.read().decode())
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Kunne ikke hente fra Google: {exc.reason}") from exc
 
 
 def build_google_auth_url(oauth_state: str) -> str:

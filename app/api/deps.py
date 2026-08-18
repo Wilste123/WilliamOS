@@ -59,3 +59,9 @@ def attach_refreshed_token_headers(response):
 
 
 CurrentUser = Annotated[UserContext, Depends(get_current_user)]
+
+
+def use_user_context(user: UserContext) -> UserContext:
+    """Re-bind auth in the current worker thread (sync route handlers run separately from Depends)."""
+    set_current_context(user)
+    return user
