@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.services.auth_context import clear_refreshed_tokens, set_current_context
+from app.services.auth_context import clear_request_state
 
 
 async def auth_context_middleware(request: Request, call_next):
@@ -10,5 +10,4 @@ async def auth_context_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     finally:
-        set_current_context(None)
-        clear_refreshed_tokens()
+        clear_request_state()

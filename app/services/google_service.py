@@ -203,12 +203,15 @@ def sync_google_to_inbox(integration: dict) -> dict:
                 "date"
             ) or ""
             start = str(start_raw)[:16].replace("T", " ")
-            capture_inbox_entry(f"Google kalender: {title}" + (f" ({start})" if start else ""))
+            capture_inbox_entry(
+                f"Google kalender: {title}" + (f" ({start})" if start else ""),
+                fast=True,
+            )
             created += 1
 
         for message in fetch_unread_emails(access):
             subject = message.get("subject") or "Uten emne"
-            capture_inbox_entry(f"Google e-post: {subject}")
+            capture_inbox_entry(f"Google e-post: {subject}", fast=True)
             created += 1
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Kunne ikke hente fra Google: {exc}") from exc

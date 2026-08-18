@@ -325,8 +325,8 @@ def _build_inbox_suggestions(text: str) -> list[dict]:
     return _rule_based_inbox_suggestions(text)
 
 
-def capture_inbox_entry(text: str) -> dict:
-    suggestions = _build_inbox_suggestions(text)
+def capture_inbox_entry(text: str, *, fast: bool = False) -> dict:
+    suggestions = [] if fast else _build_inbox_suggestions(text)
 
     inbox_item = create_record(
         "inbox_items",

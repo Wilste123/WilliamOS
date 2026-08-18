@@ -5,7 +5,12 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.database.supabase import get_authenticated_client, response_data
-from app.services.auth_context import UserContext, get_current_context
+from app.services.auth_context import (
+    UserContext,
+    get_cached_supabase_client,
+    get_current_context,
+    set_cached_supabase_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +85,20 @@ def _apply_read_scope(query, collection: str, context: UserContext):
 
 def get_client():
     """Return a Supabase client scoped to the signed-in user (RLS applies)."""
+    cached = get_cached_supabase_client()
+    if cached is not None:
+        return cached
+
     context = _require_auth_context()
     if not context.access_token or not context.refresh_token:
         raise RuntimeError("Authentication required. Missing session tokens.")
-    return get_authenticated_client(context.access_token, context.refresh_token)
+    client = get_authenticated_client(
+        context.access_token,
+        context.refresh_token,
+        validate_session=False,
+    )
+    set_cached_supabase_client(client)
+    return client
 
 
 def _require_supabase(operation: str, collection: str):
