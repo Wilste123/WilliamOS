@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends
-
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.services.memory_service import get_recent_memory_text
 from app.services.storage_service import list_records
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 @router.get("/")

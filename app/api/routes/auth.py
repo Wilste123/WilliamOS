@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, use_user_context
 from app.services.auth_core import context_to_response, sign_in, sign_up
 from app.services.profile_service import get_assistant_name, update_assistant_name
 
@@ -69,6 +69,7 @@ def login(request: SignInRequest):
 
 @router.get("/me", response_model=MeResponse)
 def me(user: CurrentUser):
+    use_user_context(user)
     return MeResponse(
         user_id=user.user_id,
         email=user.email,
@@ -80,6 +81,7 @@ def me(user: CurrentUser):
 
 @router.patch("/profile")
 def update_profile(request: ProfileUpdateRequest, user: CurrentUser):
+    use_user_context(user)
     if request.assistant_name is None:
         return {"assistant_name": get_assistant_name()}
     saved = update_assistant_name(request.assistant_name)

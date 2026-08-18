@@ -1,12 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.services.action_engine import apply_inbox_suggestion, capture_inbox_entry, dismiss_inbox_item
 from app.services.storage_service import list_records
 
-
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 class InboxRequest(BaseModel):

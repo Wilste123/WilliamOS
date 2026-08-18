@@ -1,12 +1,9 @@
-from fastapi import APIRouter, Depends
-
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.models.event import EventCreate
 from app.services.action_engine import create_event
 from app.services.storage_service import list_records
 
-
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 @router.get("/")

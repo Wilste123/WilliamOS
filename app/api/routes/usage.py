@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.services.usage_service import get_usage_stats, record_app_open
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 class UsageStatsResponse(BaseModel):

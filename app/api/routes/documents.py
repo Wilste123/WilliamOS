@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, File
+from fastapi import Form, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.services.action_engine import capture_document_inbox_signal, create_document, apply_document_suggestion_action
 from app.services.document_intelligence import analyze_uploaded_document
 from app.services.document_storage import save_uploaded_file
 from app.services.retrieval_service import search_documents
 from app.services.storage_service import list_records
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 class DocumentSuggestionApplyRequest(BaseModel):

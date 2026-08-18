@@ -1,10 +1,10 @@
 import json
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from app.agents.pa_agent import ask_agent, ask_agent_stream
-from app.api.deps import get_current_user
+from app.api.deps import CurrentUser, protected_router, use_user_context
 from app.services.chat_history_service import (
     append_chat_messages,
     clear_chat_messages,
@@ -13,7 +13,7 @@ from app.services.chat_history_service import (
 from app.services.memory_service import save_memory
 from app.agents.self_evolve import analyze_requests
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 class ChatRequest(BaseModel):
@@ -47,8 +47,9 @@ def chat(request: ChatRequest):
 
 
 @router.post("/stream")
-def chat_stream(request: ChatRequest):
+def chat_stream(request: ChatRequest, user: CurrentUser):
     def generate():
+        use_user_context(user)
         try:
             for event in ask_agent_stream(
                 request.message,

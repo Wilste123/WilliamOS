@@ -1,10 +1,7 @@
-from fastapi import APIRouter, Depends
-
-from app.api.deps import CurrentUser, get_current_user
+from app.api.deps import CurrentUser, protected_router
 from app.services.action_engine import build_dashboard_summary, build_home_summary, build_priority_engine, build_timeline, build_weekly_brief
 
-
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 @router.get("/home")

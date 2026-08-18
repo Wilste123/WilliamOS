@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException
 
-from app.api.deps import get_current_user
+from app.api.deps import protected_router
 from app.models.goal import GoalCreate, GoalUpdate
 from app.services.action_engine import create_goal as create_goal_record, update_goal
 from app.services.storage_service import list_records
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = protected_router()
 
 
 @router.get("")
