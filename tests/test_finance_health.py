@@ -45,16 +45,16 @@ def test_list_integration_statuses():
         statuses = list_integration_statuses()
 
     providers = {row["provider"] for row in statuses}
-    assert "outlook" in providers
+    assert "google" in providers
     assert "apple_health" in providers
     assert "garmin" in providers
     assert "strava" in providers
 
 
-def test_microsoft_redirect_uri():
+def test_google_redirect_uri():
     import os
 
-    from app.services.outlook_service import _redirect_uri
+    from app.services.google_service import _redirect_uri
 
     with patch.dict(os.environ, {"FRONTEND_URL": "http://localhost:3000"}, clear=False):
         assert _redirect_uri() == "http://localhost:3000/integrations/callback"

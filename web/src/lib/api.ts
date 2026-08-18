@@ -529,8 +529,8 @@ export async function connectIntegration(provider: string) {
   );
 }
 
-export async function completeOutlookIntegration(code: string, state: string) {
-  return request<Record<string, unknown>>("/integrations/outlook/complete", {
+export async function completeGoogleIntegration(code: string, state: string) {
+  return request<Record<string, unknown>>("/integrations/google/complete", {
     method: "POST",
     body: JSON.stringify({ code, state }),
   });

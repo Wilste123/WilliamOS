@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 
-import { completeOutlookIntegration } from "@/lib/api";
+import { completeGoogleIntegration } from "@/lib/api";
 
-function OutlookCallbackInner() {
+function GoogleCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const handled = useRef(false);
@@ -27,22 +27,22 @@ function OutlookCallbackInner() {
       return;
     }
 
-    completeOutlookIntegration(code, state)
-      .then(() => router.replace("/integrations?connected=outlook"))
+    completeGoogleIntegration(code, state)
+      .then(() => router.replace("/integrations?connected=google"))
       .catch((err) =>
         router.replace(
-          `/integrations?error=${encodeURIComponent(err instanceof Error ? err.message : "outlook_feilet")}`
+          `/integrations?error=${encodeURIComponent(err instanceof Error ? err.message : "google_feilet")}`
         )
       );
   }, [router, searchParams]);
 
-  return <p className="text-sm text-muted">Kobler til Outlook…</p>;
+  return <p className="text-sm text-muted">Kobler til Google…</p>;
 }
 
 export default function IntegrationsCallbackPage() {
   return (
     <Suspense fallback={<p className="text-sm text-muted">Laster…</p>}>
-      <OutlookCallbackInner />
+      <GoogleCallbackInner />
     </Suspense>
   );
 }

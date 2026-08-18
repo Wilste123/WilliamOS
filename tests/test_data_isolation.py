@@ -50,7 +50,7 @@ def test_apply_auth_fields_user_integrations(user_context):
 
     record = _apply_auth_fields(
         "user_integrations",
-        {"provider": "outlook", "visibility": "household", "household_id": "x"},
+        {"provider": "google", "visibility": "household", "household_id": "x"},
     )
     assert record["user_id"] == user_context.user_id
     assert "household_id" not in record

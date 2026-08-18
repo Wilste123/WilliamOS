@@ -92,7 +92,7 @@ function IntegrationsPageInner() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Integrasjoner</h1>
-        <p className="text-sm text-muted">Outlook, Apple Health, Garmin og Strava.</p>
+        <p className="text-sm text-muted">Google Calendar, Gmail, Apple Health, Garmin og Strava.</p>
       </div>
 
       {message && (
@@ -110,9 +110,9 @@ function IntegrationsPageInner() {
                   {statusLabel(item.status)}
                   {item.last_sync_at ? ` · sist synk ${String(item.last_sync_at).slice(0, 10)}` : ""}
                 </p>
-                {!item.configured && item.provider === "outlook" && (
+                {!item.configured && item.provider === "google" && (
                   <p className="mt-2 text-xs text-amber-200">
-                    Sett MICROSOFT_CLIENT_ID og MICROSOFT_CLIENT_SECRET i .env
+                    Sett GOOGLE_CLIENT_ID og GOOGLE_CLIENT_SECRET i .env
                   </p>
                 )}
               </div>
@@ -153,7 +153,7 @@ function IntegrationsPageInner() {
       </div>
 
       <p className="text-sm text-muted">
-        Outlook sender kalender og uleste e-poster som{" "}
+        Google sender kalender og uleste e-poster som{" "}
         <Link href="/inbox" className="text-accent">
           Inbox-signaler
         </Link>

@@ -1,22 +1,22 @@
-"""User integrations — Outlook, Apple Health, Garmin, Strava."""
+"""User integrations — Google, Apple Health, Garmin, Strava."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from app.services.auth_context import get_current_context
-from app.services.outlook_service import (
-    _microsoft_configured,
-    complete_outlook_oauth,
-    start_outlook_oauth,
-    sync_outlook_to_inbox,
+from app.services.google_service import (
+    _google_configured,
+    complete_google_oauth,
+    start_google_oauth,
+    sync_google_to_inbox,
 )
 from app.services.storage_service import create_record, list_records, update_record
 
 PROVIDERS = {
-    "outlook": {
-        "label": "Microsoft Outlook",
-        "description": "Kalender og e-postsignaler til Inbox",
+    "google": {
+        "label": "Google Calendar & Gmail",
+        "description": "Kalender og uleste e-poster som Inbox-signaler",
         "connect_type": "oauth",
     },
     "apple_health": {
@@ -61,7 +61,7 @@ def list_integration_statuses() -> list[dict]:
                 "connect_type": meta["connect_type"],
                 "status": (row or {}).get("status", "disconnected"),
                 "last_sync_at": (row or {}).get("last_sync_at"),
-                "configured": provider != "outlook" or _microsoft_configured(),
+                "configured": provider != "google" or _google_configured(),
             }
         )
     return result
@@ -110,8 +110,8 @@ def sync_provider(provider: str) -> dict:
     if not row or row.get("status") not in {"connected", "error"}:
         raise RuntimeError(f"{provider} er ikke tilkoblet.")
 
-    if provider == "outlook":
-        return sync_outlook_to_inbox(row)
+    if provider == "google":
+        return sync_google_to_inbox(row)
 
     update_record(
         "user_integrations",
@@ -125,15 +125,15 @@ def sync_provider(provider: str) -> dict:
     }
 
 
-def start_outlook_connect() -> dict:
+def start_google_connect() -> dict:
     context = get_current_context()
     if not context:
         raise RuntimeError("Ikke innlogget.")
-    return start_outlook_oauth(context.user_id)
+    return start_google_oauth(context.user_id)
 
 
-def finish_outlook_connect(code: str, state: str) -> dict:
+def finish_google_connect(code: str, state: str) -> dict:
     context = get_current_context()
     if not context:
         raise RuntimeError("Ikke innlogget.")
-    return complete_outlook_oauth(code, state, context.user_id)
+    return complete_google_oauth(code, state, context.user_id)
