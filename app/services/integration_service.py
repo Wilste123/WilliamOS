@@ -80,7 +80,6 @@ def connect_manual_provider(provider: str) -> dict:
         "provider": provider,
         "status": "connected",
         "metadata": {"mode": "manual", "connected_at": datetime.now(timezone.utc).isoformat()},
-        "user_id": context.user_id,
     }
     if existing:
         return update_record("user_integrations", existing["id"], payload) or existing

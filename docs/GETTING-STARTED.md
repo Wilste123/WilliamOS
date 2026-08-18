@@ -27,6 +27,7 @@ Run in Supabase SQL Editor, **in order**:
 7. `migrations/2026-08-17_data_isolation_hardening.sql`
 8. `migrations/2026-08-17_quarantine_orphan_records.sql`
 9. `migrations/2026-08-18_google_integration.sql`
+10. `migrations/2026-08-19_user_integrations_rls_fix.sql`
 
 Create a Storage bucket named `documents` (or match `DOCUMENTS_BUCKET` in `.env`).
 

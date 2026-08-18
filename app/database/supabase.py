@@ -71,6 +71,8 @@ def get_authenticated_client(access_token: str, refresh_token: str) -> Client:
         client.auth.set_session(token, refresh_token.strip())
     except IndexError as exc:
         raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.") from exc
+    # Ensure PostgREST uses the user JWT (RLS auth.uid() on inserts).
+    client.postgrest.auth(token)
     return client
 
 

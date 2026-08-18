@@ -219,7 +219,6 @@ def start_google_oauth(user_id: str) -> dict:
         "provider": "google",
         "status": "pending",
         "metadata": {"oauth_state": oauth_state},
-        "user_id": user_id,
     }
     if existing:
         update_record("user_integrations", existing["id"], payload)

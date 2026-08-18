@@ -1,7 +1,12 @@
 import logging
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+
+# Always load repo-root .env (uvicorn cwd may differ; .env edits need a server restart).
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
