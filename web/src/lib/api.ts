@@ -610,8 +610,46 @@ export async function updateProfile(body: {
   });
 }
 
+function onboardingStateFromSession(session: AuthSession): OnboardingState {
+  const prefs = session.preferences;
+  return {
+    onboarding_completed: Boolean(prefs?.onboarding_completed),
+    assistant_name: session.assistant_name,
+    primary_use: prefs?.primary_use ?? null,
+    assets_mentioned: prefs?.assets_mentioned ?? [],
+    focus_now: prefs?.focus_now ?? null,
+  };
+}
+
+function syncOnboardingSession(result: OnboardingState): void {
+  const session = getSession();
+  if (!session) return;
+  saveSession({
+    ...session,
+    assistant_name: result.assistant_name ?? session.assistant_name,
+    preferences: {
+      language: session.preferences?.language ?? "nb",
+      default_asset_type: session.preferences?.default_asset_type ?? "other",
+      inbox_automation: session.preferences?.inbox_automation ?? true,
+      ...session.preferences,
+      onboarding_completed: result.onboarding_completed,
+      primary_use: result.primary_use,
+      assets_mentioned: result.assets_mentioned,
+      focus_now: result.focus_now,
+    },
+  });
+}
+
 export async function fetchOnboarding(): Promise<OnboardingState> {
-  return request<OnboardingState>("/auth/onboarding");
+  try {
+    return await request<OnboardingState>("/auth/onboarding");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      const me = await fetchMe();
+      return onboardingStateFromSession(me);
+    }
+    throw err;
+  }
 }
 
 export async function submitOnboarding(body: {
@@ -620,48 +658,50 @@ export async function submitOnboarding(body: {
   assets_mentioned?: string[];
   focus_now?: string;
 }): Promise<OnboardingState> {
-  const result = await request<OnboardingState>("/auth/onboarding", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  const session = getSession();
-  if (session) {
-    saveSession({
-      ...session,
-      assistant_name: result.assistant_name ?? session.assistant_name,
-      preferences: {
-        ...session.preferences,
-        language: session.preferences?.language ?? "nb",
-        default_asset_type: session.preferences?.default_asset_type ?? "other",
-        inbox_automation: session.preferences?.inbox_automation ?? true,
-        onboarding_completed: result.onboarding_completed,
-        primary_use: result.primary_use,
-        assets_mentioned: result.assets_mentioned,
-        focus_now: result.focus_now,
-      },
+  try {
+    const result = await request<OnboardingState>("/auth/onboarding", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
+    syncOnboardingSession(result);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      await updateProfile({
+        assistant_name: body.assistant_name,
+        preferences: {
+          onboarding_completed: true,
+          primary_use: body.primary_use ?? null,
+          assets_mentioned: body.assets_mentioned ?? [],
+          focus_now: body.focus_now ?? null,
+        },
+      });
+      const me = await fetchMe();
+      const result = onboardingStateFromSession(me);
+      syncOnboardingSession(result);
+      return result;
+    }
+    throw err;
   }
-  return result;
 }
 
 export async function skipOnboarding(): Promise<OnboardingState> {
-  const result = await request<OnboardingState>("/auth/onboarding/skip", {
-    method: "POST",
-  });
-  const session = getSession();
-  if (session) {
-    saveSession({
-      ...session,
-      preferences: {
-        ...session.preferences,
-        language: session.preferences?.language ?? "nb",
-        default_asset_type: session.preferences?.default_asset_type ?? "other",
-        inbox_automation: session.preferences?.inbox_automation ?? true,
-        onboarding_completed: true,
-      },
+  try {
+    const result = await request<OnboardingState>("/auth/onboarding/skip", {
+      method: "POST",
     });
+    syncOnboardingSession(result);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      await updateProfile({ preferences: { onboarding_completed: true } });
+      const me = await fetchMe();
+      const result = onboardingStateFromSession(me);
+      syncOnboardingSession(result);
+      return result;
+    }
+    throw err;
   }
-  return result;
 }
 
 export async function exportUserData() {
