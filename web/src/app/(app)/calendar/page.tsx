@@ -60,6 +60,14 @@ function monthGrid(year: number, month: number): (Date | null)[] {
   return cells;
 }
 
+function monthFetchRange(cursor: Date): { from: string; to: string } {
+  const from = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  from.setDate(from.getDate() - 7);
+  const to = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
+  to.setDate(to.getDate() + 7);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 export default function CalendarPage() {
   const today = new Date();
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -84,14 +92,15 @@ export default function CalendarPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await fetchCalendar({ days: 60 });
+      const range = monthFetchRange(cursor);
+      const rows = await fetchCalendar(range);
       setEvents(rows);
     } catch {
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cursor]);
 
   useEffect(() => {
     load();
@@ -167,6 +176,15 @@ export default function CalendarPage() {
       } else if (syncGoogle && saved.google_synced === true) {
         setSyncMessage("Synket til Google Calendar.");
       }
+      setEvents((current) => {
+        const id = saved.id ? String(saved.id) : null;
+        if (!id) return current;
+        const next = current.filter((row) => String(row.id) !== id);
+        next.push(saved);
+        return next.sort(
+          (a, b) => String(a.start_at ?? "").localeCompare(String(b.start_at ?? ""))
+        );
+      });
       resetForm();
       await load();
     } finally {

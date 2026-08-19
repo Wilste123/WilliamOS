@@ -12,6 +12,8 @@ from app.services.google_service import (
     google_has_calendar_write_scope,
     sync_google_calendar_events,
     update_google_calendar_event,
+    _backfill_integration_scopes,
+    _ensure_access_token,
 )
 from app.services.storage_service import create_record, delete_record, list_records, update_record
 
@@ -79,7 +81,11 @@ def _push_record_to_google(record: dict, *, update: bool = False) -> tuple[dict,
     if not integration:
         return record, "Google er ikke tilkoblet."
 
-    if not google_has_calendar_write_scope(integration):
+    access = _ensure_access_token(integration)
+    if not access:
+        return record, "Google-token er utløpt. Koble til på nytt under Integrasjoner."
+
+    if not google_has_calendar_write_scope(integration, access_token=access):
         return record, _google_write_scope_error()
 
     try:
@@ -87,11 +93,21 @@ def _push_record_to_google(record: dict, *, update: bool = False) -> tuple[dict,
             google_event = update_google_calendar_event(integration, record)
         else:
             google_event = create_google_calendar_event(integration, record)
+        _backfill_integration_scopes(integration, access)
         return _apply_google_metadata(record, google_event), None
     except Exception as exc:
         message = str(exc)
+        if "403" in message and "insufficient" in message.lower():
+            message = _google_write_scope_error()
         logger.warning("Google calendar write-back failed: %s", message)
         return record, message
+
+
+def _start_of_day_utc(value: datetime | None = None) -> datetime:
+    base = value or datetime.now(timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    return base.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def list_calendar_events(
@@ -102,11 +118,29 @@ def list_calendar_events(
     limit: int = 100,
 ) -> list[dict]:
     now = datetime.now(timezone.utc)
-    range_start = _parse_dt(from_date) or now
+    if from_date is not None:
+        range_start = _parse_dt(from_date) or _start_of_day_utc(now)
+    elif days is not None:
+        range_start = _start_of_day_utc(now)
+    else:
+        range_start = _start_of_day_utc(now)
+
     if days is not None and to_date is None:
+        # Inclusive day window: today + (days - 1), end bound is start of next day.
         range_end = range_start + timedelta(days=max(1, days))
     else:
-        range_end = _parse_dt(to_date) or (range_start + timedelta(days=30))
+        parsed_end = _parse_dt(to_date)
+        if parsed_end is not None:
+            range_end = parsed_end if parsed_end.tzinfo else parsed_end.replace(tzinfo=timezone.utc)
+            if (
+                parsed_end.hour == 0
+                and parsed_end.minute == 0
+                and parsed_end.second == 0
+                and parsed_end.microsecond == 0
+            ):
+                range_end = range_end + timedelta(days=1)
+        else:
+            range_end = range_start + timedelta(days=30)
 
     rows = _list_records_safe()
     filtered: list[dict] = []

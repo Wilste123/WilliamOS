@@ -33,24 +33,75 @@ SCOPES = (
 REQUIRED_CALENDAR_SCOPE = "calendar.events"
 
 
-def google_has_calendar_write_scope(integration: dict | None) -> bool:
+def google_has_calendar_write_scope(
+    integration: dict | None,
+    *,
+    access_token: str | None = None,
+) -> bool:
     if not integration or integration.get("status") != "connected":
         return False
     metadata = integration.get("metadata") or {}
     scopes = metadata.get("scopes") or ""
     if isinstance(scopes, list):
         scopes = " ".join(scopes)
-    return REQUIRED_CALENDAR_SCOPE in str(scopes)
+    if REQUIRED_CALENDAR_SCOPE in str(scopes):
+        return True
+    token = (access_token or integration.get("access_token") or "").strip()
+    if not token:
+        return False
+    live_scopes = fetch_token_scopes(token)
+    return REQUIRED_CALENDAR_SCOPE in live_scopes
 
 
 def google_needs_reconnect(integration: dict | None) -> bool:
     """True when Google is connected but lacks calendar write scope (pre-upgrade tokens)."""
     if not integration or integration.get("status") != "connected":
         return False
+    access = integration.get("access_token")
+    if access and google_has_calendar_write_scope(integration, access_token=access):
+        return False
     metadata = integration.get("metadata") or {}
-    if "scopes" not in metadata:
+    if "scopes" in metadata and google_has_calendar_write_scope(integration):
+        return False
+    if not access:
         return True
-    return not google_has_calendar_write_scope(integration)
+    live_scopes = fetch_token_scopes(access)
+    if live_scopes:
+        return REQUIRED_CALENDAR_SCOPE not in live_scopes
+    # Unknown — metadata missing and tokeninfo failed; ask user to reconnect.
+    return "scopes" not in metadata
+
+
+def fetch_token_scopes(access_token: str) -> str:
+    """Return OAuth scopes granted to an access token (live check via Google tokeninfo)."""
+    token = (access_token or "").strip()
+    if not token:
+        return ""
+    params = urllib.parse.urlencode({"access_token": token})
+    url = f"https://oauth2.googleapis.com/tokeninfo?{params}"
+    request = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=15, context=_ssl_context()) as response:
+            payload = json.loads(response.read().decode())
+        return str(payload.get("scope") or "")
+    except Exception as exc:
+        logger.warning("Could not fetch Google token scopes: %s", exc)
+        return ""
+
+
+def _backfill_integration_scopes(integration: dict, access_token: str) -> None:
+    live_scopes = fetch_token_scopes(access_token)
+    if not live_scopes:
+        return
+    metadata = dict(integration.get("metadata") or {})
+    if metadata.get("scopes") == live_scopes:
+        return
+    metadata["scopes"] = live_scopes
+    update_record(
+        "user_integrations",
+        integration["id"],
+        {"metadata": metadata},
+    )
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -547,7 +598,7 @@ def complete_google_oauth(code: str, state: str, user_id: str) -> dict:
         {
             "status": "connected",
             "access_token": tokens["access_token"],
-            "refresh_token": tokens.get("refresh_token"),
+            "refresh_token": tokens.get("refresh_token") or integration.get("refresh_token"),
             "token_expires_at": expires_at.isoformat(),
             "metadata": {
                 "scopes": tokens.get("scope") or SCOPES,

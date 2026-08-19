@@ -92,6 +92,18 @@ def test_create_calendar_event_pushes_to_google(monkeypatch):
         "app.services.calendar_service.create_google_calendar_event",
         lambda _integration, record: {"id": "google-new-1", "organizer": {"email": "primary"}},
     )
+    monkeypatch.setattr(
+        "app.services.calendar_service._ensure_access_token",
+        lambda _integration: "token",
+    )
+    monkeypatch.setattr(
+        "app.services.google_service.fetch_token_scopes",
+        lambda _token: "https://www.googleapis.com/auth/calendar.events",
+    )
+    monkeypatch.setattr(
+        "app.services.calendar_service._backfill_integration_scopes",
+        lambda _integration, _token: None,
+    )
 
     start = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
     record = create_calendar_event(
@@ -119,6 +131,15 @@ def test_create_calendar_event_reports_missing_write_scope(monkeypatch):
         }
     )
 
+    monkeypatch.setattr(
+        "app.services.calendar_service._ensure_access_token",
+        lambda _integration: "token",
+    )
+    monkeypatch.setattr(
+        "app.services.google_service.fetch_token_scopes",
+        lambda _token: "https://www.googleapis.com/auth/calendar.readonly",
+    )
+
     start = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
     record = create_calendar_event(
         {"title": "App møte", "start_at": start},
@@ -126,3 +147,17 @@ def test_create_calendar_event_reports_missing_write_scope(monkeypatch):
     )
     assert record["google_synced"] is False
     assert "skrivetilgang" in str(record.get("google_sync_error", "")).lower()
+
+
+def test_list_calendar_events_includes_earlier_today(monkeypatch):
+    _patch_supabase(monkeypatch)
+    from app.services.calendar_service import create_calendar_event, list_calendar_events
+
+    now = datetime.now(timezone.utc)
+    morning = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    record = create_calendar_event(
+        {"title": "I dag morges", "start_at": morning.isoformat()},
+        sync_google=False,
+    )
+    listed = list_calendar_events(days=7)
+    assert any(row["id"] == record["id"] for row in listed)

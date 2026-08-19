@@ -382,8 +382,12 @@ export type CalendarEvent = Record<string, unknown> & {
   google_sync_error?: string;
 };
 
-export async function fetchCalendar(options: { days?: number } = {}) {
-  const query = options.days ? `?days=${options.days}` : "";
+export async function fetchCalendar(options: { days?: number; from?: string; to?: string } = {}) {
+  const params = new URLSearchParams();
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  if (options.days != null) params.set("days", String(options.days));
+  const query = params.toString() ? `?${params.toString()}` : "";
   return request<CalendarEvent[]>(`/calendar${query}`);
 }
 
