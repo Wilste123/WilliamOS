@@ -11,11 +11,14 @@ from app.services.chat_history_service import list_chat_messages
 from app.services.web_search_service import search_web
 from app.services.calendar_service import (
     create_calendar_event,
+    delete_calendar_event,
     list_upcoming,
     sync_google_calendar,
+    update_calendar_event,
 )
-from app.services.storage_service import list_records
+from app.services.storage_service import delete_record, list_records
 from app.services.action_engine import (
+    apply_inbox_suggestion,
     build_dashboard_summary,
     build_priority_engine,
     build_weekly_brief,
@@ -23,14 +26,23 @@ from app.services.action_engine import (
     create_asset,
     create_decision,
     create_document,
+    create_goal,
     create_project,
     create_task,
     update_asset,
     update_decision,
+    update_goal,
     update_project,
     update_task,
 )
-from app.services.chat_actions import merge_chat_actions, tool_result_to_action
+from app.agents.intent_router import intent_system_hint
+from app.services.mission_service import plan_mission
+from app.services.chat_actions import (
+    PROPOSE_TOOLS,
+    build_proposal,
+    merge_chat_actions,
+    tool_result_to_action,
+)
 
 PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "pa_system_prompt.txt"
 DEFAULT_PROMPT = "You are WilliamOS, William's practical personal assistant. Answer in Norwegian."
@@ -417,6 +429,109 @@ WILLIAMOS_TOOLS: list[dict] = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_goal",
+            "description": "Opprett et nytt mål knyttet til en modul (f.eks. house, finance).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "module": {"type": "string", "description": "Modul, f.eks. house, vehicle, finance"},
+                    "status": {"type": "string", "enum": ["active", "paused", "done"]},
+                    "target_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_goal",
+            "description": "Oppdater et eksisterende mål.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "status": {"type": "string", "enum": ["active", "paused", "done"]},
+                    "target_date": {"type": "string"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["goal_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_goals",
+            "description": "Hent liste over alle mål.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_task",
+            "description": "Slett en oppgave permanent.",
+            "parameters": {
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}},
+                "required": ["task_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_calendar_event",
+            "description": "Oppdater en kalenderavtale.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "start_at": {"type": "string"},
+                    "end_at": {"type": "string"},
+                    "location": {"type": "string"},
+                    "description": {"type": "string"},
+                    "sync_google": {"type": "boolean"},
+                },
+                "required": ["event_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_calendar_event",
+            "description": "Slett en kalenderavtale.",
+            "parameters": {
+                "type": "object",
+                "properties": {"event_id": {"type": "string"}},
+                "required": ["event_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_inbox_suggestion",
+            "description": "Opprett record fra et inbox-forslag (task, asset, decision, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "inbox_id": {"type": "string"},
+                    "suggestion_index": {"type": "integer", "description": "0-basert indeks i forslagslisten"},
+                },
+                "required": ["inbox_id", "suggestion_index"],
+            },
+        },
+    },
 ]
 
 
@@ -429,9 +544,21 @@ def _execute_tool(
     args: dict,
     *,
     action_log: list[dict] | None = None,
+    proposal_log: list[dict] | None = None,
     web_sources: list[dict] | None = None,
+    require_confirmation: bool = True,
 ) -> object:
     clean = {k: v for k, v in args.items() if v is not None}
+
+    if require_confirmation and func_name in PROPOSE_TOOLS:
+        proposal = build_proposal(func_name, clean)
+        if proposal_log is not None:
+            proposal_log.append(proposal)
+        return {
+            "status": "proposed",
+            "title": proposal["title"],
+            "message": "Forslag sendt — bruker må godkjenne før det utføres.",
+        }
 
     try:
         if func_name == "create_asset":
@@ -532,6 +659,41 @@ def _execute_tool(
             result = create_calendar_event(clean, sync_google=bool(sync_google))
         elif func_name == "sync_google_calendar":
             result = sync_google_calendar()
+        elif func_name == "create_goal":
+            result = create_goal(clean)
+        elif func_name == "update_goal":
+            goal_id = clean.pop("goal_id")
+            result = update_goal(goal_id, clean) or {"error": "Mål ikke funnet"}
+        elif func_name == "list_goals":
+            result = list_records("goals")
+        elif func_name == "delete_task":
+            task_id = clean.get("task_id")
+            if not task_id:
+                result = {"error": "task_id mangler"}
+            else:
+                ok = delete_record("tasks", str(task_id))
+                result = {"deleted": ok, "id": task_id} if ok else {"error": "Oppgave ikke funnet"}
+        elif func_name == "update_calendar_event":
+            event_id = clean.pop("event_id")
+            sync_google = clean.pop("sync_google", True)
+            result = (
+                update_calendar_event(event_id, clean, sync_google=bool(sync_google))
+                or {"error": "Hendelse ikke funnet"}
+            )
+        elif func_name == "delete_calendar_event":
+            event_id = clean.get("event_id")
+            if not event_id:
+                result = {"error": "event_id mangler"}
+            else:
+                ok = delete_calendar_event(str(event_id))
+                result = {"deleted": ok, "id": event_id} if ok else {"error": "Hendelse ikke funnet"}
+        elif func_name == "apply_inbox_suggestion":
+            inbox_id = clean.get("inbox_id")
+            index = clean.get("suggestion_index")
+            if inbox_id is None or index is None:
+                result = {"error": "inbox_id og suggestion_index kreves"}
+            else:
+                result = apply_inbox_suggestion(str(inbox_id), int(index))
         else:
             result = {"error": f"Ukjent funksjon: {func_name}"}
 
@@ -589,6 +751,16 @@ def handle_actions(message: str):
     msg = message.strip()
     lowered = msg.lower()
     actions: list[dict] = []
+
+    mission_match = re.match(r"^(oppdrag|mission)\s*[:\-]\s*(.+)$", msg, flags=re.IGNORECASE)
+    if mission_match:
+        goal = mission_match.group(2).strip()
+        mission = plan_mission(goal)
+        return {
+            "handled": True,
+            "response": mission["summary"],
+            "actions": mission["proposals"],
+        }
 
     if lowered.startswith("husk "):
         text = message[5:]
@@ -739,6 +911,10 @@ def _build_agent_messages(
     for block in build_agent_context_blocks():
         messages.append({"role": "system", "content": block})
 
+    hint = intent_system_hint(message)
+    if hint:
+        messages.append({"role": "system", "content": hint})
+
     sources: list[dict] = []
     if use_documents:
         doc_context, sources = build_document_context(message, document_id=document_id)
@@ -811,6 +987,7 @@ def ask_agent_stream(
         message, use_documents=use_documents, history=history, document_id=document_id
     )
     completed_actions: list[dict] = []
+    proposals: list[dict] = []
     web_sources: list[dict] = []
     assistant_text = ""
 
@@ -819,6 +996,7 @@ def ask_agent_stream(
             func_name,
             args,
             action_log=completed_actions,
+            proposal_log=proposals,
             web_sources=web_sources,
         )
 
@@ -832,10 +1010,11 @@ def ask_agent_stream(
                 assistant_text += value
                 yield {"type": "token", "text": value}
         extract_memory_from_turn(message, assistant_text)
+        all_actions = proposals + completed_actions
         yield {
             "type": "done",
             "sources": sources + web_sources,
-            "actions": merge_chat_actions(completed_actions, assistant_text),
+            "actions": merge_chat_actions(all_actions, assistant_text),
         }
     except Exception as exc:
         yield {"type": "error", "message": str(exc)}

@@ -4,7 +4,18 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { StatCard } from "@/components/StatCard";
-import { fetchCalendar, fetchHome, fetchWeeklyBrief, type CalendarEvent, type WeeklyBrief } from "@/lib/api";
+import {
+  executeChatAction,
+  executeChatActionsBatch,
+  fetchCalendar,
+  fetchDailyBrief,
+  fetchHome,
+  fetchWeeklyBrief,
+  type CalendarEvent,
+  type ChatAction,
+  type DailyBrief,
+  type WeeklyBrief,
+} from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { getTimeGreeting, type HomeSummary } from "@/lib/home";
 import { priorityItemActionLabel, priorityItemHref } from "@/lib/priority-links";
@@ -32,15 +43,18 @@ function HomeSkeleton() {
 export default function HomePage() {
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [brief, setBrief] = useState<WeeklyBrief | null>(null);
+  const [dailyBrief, setDailyBrief] = useState<DailyBrief | null>(null);
   const [upcoming, setUpcoming] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [homeResult, weeklyResult, calendarResult] = await Promise.allSettled([
+    const [homeResult, weeklyResult, dailyResult, calendarResult] = await Promise.allSettled([
       fetchHome(),
       fetchWeeklyBrief(),
+      fetchDailyBrief(),
       fetchCalendar({ days: 3 }),
     ]);
     if (homeResult.status === "fulfilled") {
@@ -56,6 +70,9 @@ export default function HomePage() {
     }
     if (weeklyResult.status === "fulfilled") {
       setBrief(weeklyResult.value);
+    }
+    if (dailyResult.status === "fulfilled") {
+      setDailyBrief(dailyResult.value);
     }
     if (calendarResult.status === "fulfilled") {
       setUpcoming(calendarResult.value.slice(0, 4));
@@ -76,6 +93,39 @@ export default function HomePage() {
       setError(true);
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function runProposal(action: ChatAction) {
+    setProposalBusy(action.id);
+    try {
+      await executeChatAction(action);
+      setDailyBrief((current) =>
+        current
+          ? {
+              ...current,
+              proposals: current.proposals.filter((row) => row.id !== action.id),
+              proposal_count: Math.max(0, current.proposal_count - 1),
+            }
+          : current
+      );
+      await load();
+    } finally {
+      setProposalBusy(null);
+    }
+  }
+
+  async function runAllProposals() {
+    if (!dailyBrief?.proposals.length) return;
+    setProposalBusy("batch");
+    try {
+      await executeChatActionsBatch(dailyBrief.proposals);
+      setDailyBrief((current) =>
+        current ? { ...current, proposals: [], proposal_count: 0 } : current
+      );
+      await load();
+    } finally {
+      setProposalBusy(null);
     }
   }
 
@@ -128,6 +178,50 @@ export default function HomePage() {
         />
         <StatCard label="Prosjekter" value={`${summary.metrics?.projects ?? 0} aktive`} />
       </div>
+
+      {dailyBrief && dailyBrief.proposals.length > 0 && (
+        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium uppercase tracking-wide text-amber-200/90">
+                Forslag fra Mini-jarv
+              </h2>
+              <p className="text-xs text-muted">{dailyBrief.headline}</p>
+            </div>
+            {dailyBrief.proposals.length > 1 && (
+              <button
+                type="button"
+                disabled={proposalBusy === "batch"}
+                onClick={() => void runAllProposals()}
+                className="rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-60"
+              >
+                {proposalBusy === "batch" ? "Utfører…" : "Utfør alle"}
+              </button>
+            )}
+          </div>
+          <ul className="space-y-2">
+            {dailyBrief.proposals.map((proposal) => (
+              <li
+                key={proposal.id}
+                className="flex items-center justify-between gap-3 rounded-xl bg-zinc-900/60 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{proposal.title}</p>
+                  <p className="text-xs text-muted">{proposal.label}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={proposalBusy !== null}
+                  onClick={() => void runProposal(proposal)}
+                  className="shrink-0 rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs text-amber-100 disabled:opacity-60"
+                >
+                  {proposalBusy === proposal.id ? "…" : "Utfør"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-border p-4">
         <div className="mb-4 flex items-center justify-between gap-3">

@@ -9,6 +9,7 @@ import {
   fetchChatHistory,
   appendChatHistory,
   executeChatAction,
+  executeChatActionsBatch,
   type ChatAction,
   type ChatStreamEvent,
 } from "@/lib/api";
@@ -23,7 +24,7 @@ type Message = {
 const CHAT_STORAGE_KEY = "mini_jarv_chat_history";
 const QUICK_ACTIONS = [
   "Hva bør jeg gjøre i dag?",
-  "Oppsummer eiendelene mine",
+  "oppdrag: Forbered uken min",
   "Hva bør jeg gjøre denne uka?",
 ];
 
@@ -81,40 +82,75 @@ function ActionCards({
   onActionDone,
 }: {
   actions: ChatAction[];
-  onActionDone: (actionId: string, message: string) => void;
+  onActionDone: (actionId: string, message: string, updated?: ChatAction) => void;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   if (!actions.length) return null;
 
+  const pending = actions.filter((action) => action.status === "proposed");
+
+  async function runAction(action: ChatAction) {
+    setBusyId(action.id);
+    try {
+      const finalized = await executeChatAction(action);
+      onActionDone(action.id, `✅ ${action.label}: ${action.title}`, finalized);
+    } catch {
+      onActionDone(action.id, `Kunne ikke utføre: ${action.label}`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function runAllPending() {
+    if (!pending.length) return;
+    setBatchBusy(true);
+    try {
+      const { results } = await executeChatActionsBatch(pending);
+      for (const row of results) {
+        if (row.ok) {
+          onActionDone(row.action.id, `✅ ${row.action.label}: ${row.action.title}`, row.action);
+        } else {
+          onActionDone(row.action.id, `Kunne ikke utføre: ${row.action.label}`);
+        }
+      }
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {actions.map((action) => (
+    <div className="mt-2 space-y-2">
+      {pending.length > 1 && (
         <button
-          key={action.id}
           type="button"
-          disabled={action.status === "completed" || busyId === action.id}
-          onClick={async () => {
-            if (action.status === "completed") return;
-            setBusyId(action.id);
-            try {
-              await executeChatAction(action);
-              onActionDone(action.id, `✅ ${action.label}: ${action.title}`);
-            } catch {
-              onActionDone(action.id, `Kunne ikke utføre: ${action.label}`);
-            } finally {
-              setBusyId(null);
-            }
-          }}
-          className={`rounded-full px-3 py-1.5 text-xs ${
-            action.status === "completed"
-              ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-              : "border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
-          } disabled:opacity-60`}
+          disabled={batchBusy}
+          onClick={() => void runAllPending()}
+          className="rounded-full border border-accent/50 bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-60"
         >
-          {action.status === "completed" ? `✓ ${action.title}` : `[${action.label}] ${action.title}`}
+          {batchBusy ? "Utfører…" : `Utfør alle (${pending.length})`}
         </button>
-      ))}
+      )}
+      <div className="flex flex-wrap gap-2">
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            disabled={action.status === "completed" || busyId === action.id || batchBusy}
+            onClick={() => void runAction(action)}
+            className={`rounded-full px-3 py-1.5 text-xs ${
+              action.status === "completed"
+                ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                : "border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
+            } disabled:opacity-60`}
+          >
+            {action.status === "completed"
+              ? `✓ ${action.title}`
+              : `[${action.label}] ${action.title}`}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -254,7 +290,7 @@ function ChatPageInner() {
     setInput(prompt);
   }, [searchParams, router]);
 
-  function markActionDone(messageIndex: number, actionId: string, note: string) {
+  function markActionDone(messageIndex: number, actionId: string, note: string, updated?: ChatAction) {
     setMessages((current) =>
       current.map((message, index) => {
         if (index !== messageIndex || !message.actions) return message;
@@ -262,7 +298,9 @@ function ChatPageInner() {
           ...message,
           content: `${message.content}\n${note}`,
           actions: message.actions.map((action) =>
-            action.id === actionId ? { ...action, status: "completed" as const } : action
+            action.id === actionId
+              ? { ...(updated ?? action), status: "completed" as const }
+              : action
           ),
         };
       })
@@ -286,7 +324,9 @@ function ChatPageInner() {
     <div className="flex h-[calc(100dvh-9rem)] flex-col gap-4">
       <div>
         <h1 className="text-xl font-semibold">Chat med {assistantName}</h1>
-        <p className="text-sm text-muted">Spør om oppgaver, eiendeler, prosjekter og mer.</p>
+        <p className="text-sm text-muted">
+          Gi oppdrag — Mini-jarv foreslår handlinger du godkjenner med ett klikk.
+        </p>
       </div>
 
       {messages.length === 0 && (
@@ -326,7 +366,7 @@ function ChatPageInner() {
             {message.role === "assistant" && message.actions && message.actions.length > 0 && (
               <ActionCards
                 actions={message.actions}
-                onActionDone={(actionId, note) => markActionDone(index, actionId, note)}
+                onActionDone={(actionId, note, updated) => markActionDone(index, actionId, note, updated)}
               />
             )}
             {message.role === "assistant" && message.sources && message.sources.length > 0 && (

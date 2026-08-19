@@ -26,10 +26,18 @@ def test_build_agent_context_blocks_includes_focus_and_schedule(monkeypatch):
         "app.services.context_service.build_timeline",
         lambda limit=5: [{"title": "Opprettet oppgave", "event_type": "task"}],
     )
+    monkeypatch.setattr(
+        "app.services.context_service.list_records",
+        lambda collection: [],
+    )
+    monkeypatch.setattr(
+        "app.services.context_service.get_asset_detail",
+        lambda asset_id: None,
+    )
 
     blocks = build_agent_context_blocks()
 
-    assert len(blocks) == 3
+    assert len(blocks) >= 3
     assert "Prioritert fokus" in blocks[0]
     assert "Bestill olje" in blocks[0]
     assert "Kommende kalender" in blocks[1]

@@ -14,6 +14,7 @@ from app.services.action_engine import (
     reanalyze_document,
 )
 from app.services.document_intelligence import analyze_uploaded_document
+from app.services.embedding_service import index_document_embedding
 from app.services.document_storage import download_document, save_uploaded_file
 from app.services.retrieval_service import search_documents
 from app.services.storage_service import get_record, list_records
@@ -102,12 +103,23 @@ async def upload_document(
         }
     )
     inbox_signal = capture_document_inbox_signal(document, intelligence)
+    try:
+        index_document_embedding(str(document.get("id") or ""))
+    except Exception:
+        pass
     return {
         "saved": True,
         **document,
         "intelligence": intelligence,
         "inbox_signal": inbox_signal,
     }
+
+
+@router.post("/reindex-embeddings")
+def reindex_embeddings():
+    from app.services.embedding_service import reindex_all_documents
+
+    return reindex_all_documents()
 
 
 @router.get("/{document_id}/download")

@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from app.api.deps import attach_refreshed_token_headers
 from app.api.middleware.auth_context import auth_context_middleware
 from app.api.routes import assets, auth, calendar, chat, documents, finance, goals, health, memory, projects, tasks
+from app.api.routes.actions import router as actions_router
+from app.api.routes.missions import router as missions_router
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
 from app.api.routes.inbox import router as inbox_router
@@ -43,6 +45,8 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(actions_router, prefix="/actions", tags=["actions"])
+app.include_router(missions_router, prefix="/missions", tags=["missions"])
 app.include_router(inbox_router, prefix="/inbox", tags=["inbox"])
 app.include_router(overview_router, tags=["overview"])
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])

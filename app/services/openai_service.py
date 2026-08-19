@@ -13,7 +13,29 @@ logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+PLANNER_MODEL = os.getenv("OPENAI_MODEL_PLANNER", "gpt-4o")
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+
+def pick_chat_model(messages: list[dict]) -> str:
+    """Use a stronger model for complex multi-step user requests."""
+    user_text = " ".join(
+        m.get("content") or "" for m in messages if m.get("role") == "user"
+    ).lower()
+    if len(user_text) > 180:
+        return PLANNER_MODEL
+    triggers = (
+        "oppdrag",
+        "planlegg",
+        "forbered",
+        "håndter",
+        "gjør alt",
+        "multi",
+        " steg",
+    )
+    if any(token in user_text for token in triggers):
+        return PLANNER_MODEL
+    return MODEL
 
 _NO_CLIENT_MSG = (
     "OpenAI er ikke konfigurert ennå. "
@@ -76,11 +98,12 @@ def chat_completion_with_tools(
         return _NO_CLIENT_MSG
 
     current_messages = list(messages)
+    model = pick_chat_model(messages)
 
     for _ in range(max_iterations):
         try:
             response = client.chat.completions.create(
-                model=MODEL,
+                model=model,
                 messages=current_messages,
                 tools=tools,
                 tool_choice="auto",
@@ -168,12 +191,13 @@ def chat_completion_with_tools_stream(
         return
 
     current_messages = list(messages)
+    model = pick_chat_model(messages)
     yield ("status", "thinking")
 
     for _ in range(max_iterations):
         try:
             stream = client.chat.completions.create(
-                model=MODEL,
+                model=model,
                 messages=current_messages,
                 tools=tools,
                 tool_choice="auto",

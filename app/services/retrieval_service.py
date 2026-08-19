@@ -1,9 +1,10 @@
-"""Keyword-based document retrieval for chat context injection."""
+"""Hybrid keyword + semantic document retrieval for chat context."""
 
 from __future__ import annotations
 
 import re
 
+from app.services.embedding_service import cosine_similarity, embed_text, embeddings_enabled
 from app.services.storage_service import list_records
 
 MAX_SNIPPET_CHARS = 400
@@ -51,6 +52,82 @@ def _extract_snippet(query_tokens: set[str], text: str) -> str:
     return text[:MAX_SNIPPET_CHARS]
 
 
+def _semantic_score(query_vector: list[float], doc: dict) -> float:
+    embedding = doc.get("embedding")
+    if not isinstance(embedding, list) or not embedding:
+        return 0.0
+    try:
+        vector = [float(value) for value in embedding]
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, cosine_similarity(query_vector, vector))
+
+
+def _merge_hits(keyword_hits: list[dict], semantic_hits: list[dict], top_k: int) -> list[dict]:
+    combined: dict[str, dict] = {}
+    for hit in keyword_hits:
+        combined[hit["id"]] = {**hit, "score": hit["score"] * 0.45, "match": "keyword"}
+    for hit in semantic_hits:
+        existing = combined.get(hit["id"])
+        semantic_score = hit["score"] * 0.55
+        if existing:
+            existing["score"] = existing["score"] + semantic_score
+            existing["match"] = "hybrid"
+        else:
+            combined[hit["id"]] = {**hit, "score": semantic_score, "match": "semantic"}
+    ranked = sorted(combined.values(), key=lambda row: row["score"], reverse=True)
+    return ranked[:top_k]
+
+
+def search_documents_semantic(
+    query: str,
+    *,
+    source_module: str | None = None,
+    project_id: str | None = None,
+    asset_id: str | None = None,
+    top_k: int = MAX_RESULTS,
+) -> list[dict]:
+    if not query.strip() or not embeddings_enabled():
+        return []
+
+    query_vector = embed_text(query)
+    if query_vector is None:
+        return []
+
+    query_tokens = _tokenize(query)
+    documents = list_records("documents")
+    results: list[dict] = []
+
+    for doc in documents:
+        if source_module and doc.get("source_module") != source_module:
+            continue
+        if project_id and doc.get("project_id") != project_id:
+            continue
+        if asset_id and doc.get("asset_id") != asset_id:
+            continue
+
+        score = _semantic_score(query_vector, doc)
+        if score <= 0.05:
+            continue
+
+        snippet = _extract_snippet(query_tokens, doc.get("text_content") or "")
+        results.append(
+            {
+                "id": doc.get("id", ""),
+                "filename": doc.get("filename", ""),
+                "source_module": doc.get("source_module"),
+                "snippet": snippet,
+                "score": score,
+                "asset_id": doc.get("asset_id"),
+                "project_id": doc.get("project_id"),
+                "created_at": doc.get("created_at"),
+            }
+        )
+
+    results.sort(key=lambda row: row["score"], reverse=True)
+    return results[:top_k]
+
+
 def search_documents(
     query: str,
     *,
@@ -59,12 +136,38 @@ def search_documents(
     asset_id: str | None = None,
     top_k: int = MAX_RESULTS,
 ) -> list[dict]:
-    """
-    Search stored documents by keyword overlap.
+    """Hybrid keyword + semantic document search."""
+    if not query.strip():
+        return []
 
-    Returns a list of dicts with keys:
-        id, filename, source_module, snippet, score, asset_id, project_id, created_at
-    """
+    keyword_hits = _search_documents_keyword(
+        query,
+        source_module=source_module,
+        project_id=project_id,
+        asset_id=asset_id,
+        top_k=top_k,
+    )
+    semantic_hits = search_documents_semantic(
+        query,
+        source_module=source_module,
+        project_id=project_id,
+        asset_id=asset_id,
+        top_k=top_k,
+    )
+    if semantic_hits:
+        return _merge_hits(keyword_hits, semantic_hits, top_k)
+    return keyword_hits
+
+
+def _search_documents_keyword(
+    query: str,
+    *,
+    source_module: str | None = None,
+    project_id: str | None = None,
+    asset_id: str | None = None,
+    top_k: int = MAX_RESULTS,
+) -> list[dict]:
+    """Keyword overlap search."""
     if not query.strip():
         return []
 
@@ -98,7 +201,7 @@ def search_documents(
             }
         )
 
-    results.sort(key=lambda r: r["score"], reverse=True)
+    results.sort(key=lambda row: row["score"], reverse=True)
     return results[:top_k]
 
 

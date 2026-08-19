@@ -226,28 +226,28 @@ class TestExecuteToolErrorPropagation:
         _patch_supabase(monkeypatch)
         from app.agents.pa_agent import _execute_tool
 
-        result = _execute_tool("update_asset", {"asset_id": "nonexistent-id", "name": "X"})
+        result = _execute_tool("update_asset", {"asset_id": "nonexistent-id", "name": "X"}, require_confirmation=False)
         assert "error" in result
 
     def test_update_nonexistent_task_returns_error(self, monkeypatch):
         _patch_supabase(monkeypatch)
         from app.agents.pa_agent import _execute_tool
 
-        result = _execute_tool("update_task", {"task_id": "nonexistent-id", "title": "X"})
+        result = _execute_tool("update_task", {"task_id": "nonexistent-id", "title": "X"}, require_confirmation=False)
         assert "error" in result
 
     def test_update_nonexistent_project_returns_error(self, monkeypatch):
         _patch_supabase(monkeypatch)
         from app.agents.pa_agent import _execute_tool
 
-        result = _execute_tool("update_project", {"project_id": "nonexistent-id", "name": "X"})
+        result = _execute_tool("update_project", {"project_id": "nonexistent-id", "name": "X"}, require_confirmation=False)
         assert "error" in result
 
     def test_update_nonexistent_decision_returns_error(self, monkeypatch):
         _patch_supabase(monkeypatch)
         from app.agents.pa_agent import _execute_tool
 
-        result = _execute_tool("update_decision", {"decision_id": "nonexistent-id", "status": "decided"})
+        result = _execute_tool("update_decision", {"decision_id": "nonexistent-id", "status": "decided"}, require_confirmation=False)
         assert "error" in result
 
     def test_unknown_function_returns_error(self, monkeypatch):
@@ -261,7 +261,7 @@ class TestExecuteToolErrorPropagation:
         _patch_supabase(monkeypatch)
         from app.agents.pa_agent import _execute_tool
 
-        result = _execute_tool("create_project", {"name": "Via tool"})
+        result = _execute_tool("create_project", {"name": "Via tool"}, require_confirmation=False)
         assert "id" in result
         assert "error" not in result
 

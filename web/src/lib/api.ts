@@ -203,11 +203,21 @@ export type ChatStreamEvent =
 export type ChatAction = {
   id: string;
   type: string;
+  tool?: string;
   label: string;
   title: string;
   status: "completed" | "proposed";
   payload?: Record<string, unknown>;
   result_id?: string;
+  source?: string;
+};
+
+export type DailyBrief = {
+  headline: string;
+  summary: string;
+  proposal_count: number;
+  proposals: ChatAction[];
+  focus_items?: unknown[];
 };
 
 export async function streamChat(
@@ -621,20 +631,42 @@ export async function exportUserData() {
   return Object.fromEntries(entries);
 }
 
-export async function executeChatAction(action: ChatAction) {
-  if (action.type === "create_task") {
-    return createRecord("/tasks", action.payload ?? { title: action.title, priority: 2, status: "open" });
+export async function executeChatAction(action: ChatAction): Promise<ChatAction> {
+  const payload = {
+    ...action,
+    tool: action.tool ?? action.type,
+  };
+  const outcome = await request<{ action: ChatAction; ok: boolean; result: { error?: string } }>(
+    "/actions/execute",
+    {
+      method: "POST",
+      body: JSON.stringify({ action: payload }),
+    }
+  );
+  if (!outcome.ok) {
+    throw new ApiError(outcome.result?.error ?? "Handling feilet", 400);
   }
-  if (action.type === "create_asset") {
-    return createRecord("/assets", action.payload ?? { name: action.title, status: "active" });
-  }
-  if (action.type === "create_project") {
-    return createRecord("/projects", action.payload ?? { name: action.title, status: "active" });
-  }
-  if (action.type === "create_decision") {
-    return createRecord("/decisions", action.payload ?? { title: action.title, status: "open" });
-  }
-  throw new ApiError(`Ukjent handling: ${action.type}`, 400);
+  return outcome.action;
+}
+
+export async function executeChatActionsBatch(actions: ChatAction[]) {
+  return request<{
+    results: { action: ChatAction; ok: boolean; result: unknown }[];
+    executed: number;
+    total: number;
+  }>("/actions/execute-batch", {
+    method: "POST",
+    body: JSON.stringify({
+      actions: actions.map((action) => ({
+        ...action,
+        tool: action.tool ?? action.type,
+      })),
+    }),
+  });
+}
+
+export async function fetchDailyBrief() {
+  return request<DailyBrief>("/daily-brief");
 }
 
 export type ChatHistoryMessage = {
