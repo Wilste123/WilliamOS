@@ -293,6 +293,32 @@ class TestExecuteToolErrorPropagation:
         result = _execute_tool("save_memory", {"value": "Bruker foretrekker morgenmøter"})
         assert result.get("saved") is True
 
+    def test_list_upcoming_schedule_tool(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.agents import pa_agent
+
+        monkeypatch.setattr(
+            pa_agent,
+            "list_upcoming",
+            lambda days=7, limit=20: [{"id": "e1", "title": "Møte", "start_at": "2026-08-21T09:00:00"}],
+        )
+        result = pa_agent._execute_tool("list_upcoming_schedule", {"days": 7})
+        assert result["days"] == 7
+        assert len(result["events"]) == 1
+
+    def test_calendar_fast_path(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.agents import pa_agent
+
+        monkeypatch.setattr(
+            pa_agent,
+            "list_upcoming",
+            lambda days=7, limit=10: [{"title": "Tannlege", "start_at": "2026-08-21T10:00:00"}],
+        )
+        result = pa_agent.handle_actions("Hva har jeg på kalenderen?")
+        assert result["handled"] is True
+        assert "Tannlege" in result["response"]
+
 
 # ---------------------------------------------------------------------------
 # 3. End-to-end: chat action via regex fast path persists to store

@@ -192,6 +192,18 @@ class TestChatActions:
         assert action["status"] == "completed"
         assert action["type"] == "create_task"
 
+    def test_calendar_event_action(self):
+        from app.services.chat_actions import tool_result_to_action
+
+        action = tool_result_to_action(
+            "create_calendar_event",
+            {"title": "Rørlegger"},
+            {"id": "cal-1", "title": "Rørlegger"},
+        )
+        assert action
+        assert action["type"] == "create_calendar_event"
+        assert action["title"] == "Rørlegger"
+
 
 class TestGoalsApi:
     def test_create_goal(self, monkeypatch, authed_client):

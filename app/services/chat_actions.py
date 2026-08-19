@@ -14,6 +14,7 @@ _TOOL_ACTION_MAP: dict[str, tuple[str, str]] = {
     "complete_task": ("update_task", "Fullfør oppgave"),
     "capture_inbox": ("capture_inbox", "Fang i inbox"),
     "save_memory": ("save_memory", "Lagre minne"),
+    "create_calendar_event": ("create_calendar_event", "Opprett kalenderavtale"),
 }
 
 

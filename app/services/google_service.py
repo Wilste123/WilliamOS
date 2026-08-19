@@ -30,6 +30,27 @@ SCOPES = (
     "https://www.googleapis.com/auth/calendar.events "
     "https://www.googleapis.com/auth/gmail.readonly"
 )
+REQUIRED_CALENDAR_SCOPE = "calendar.events"
+
+
+def google_has_calendar_write_scope(integration: dict | None) -> bool:
+    if not integration or integration.get("status") != "connected":
+        return False
+    metadata = integration.get("metadata") or {}
+    scopes = metadata.get("scopes") or ""
+    if isinstance(scopes, list):
+        scopes = " ".join(scopes)
+    return REQUIRED_CALENDAR_SCOPE in str(scopes)
+
+
+def google_needs_reconnect(integration: dict | None) -> bool:
+    """True when Google is connected but lacks calendar write scope (pre-upgrade tokens)."""
+    if not integration or integration.get("status") != "connected":
+        return False
+    metadata = integration.get("metadata") or {}
+    if "scopes" not in metadata:
+        return True
+    return not google_has_calendar_write_scope(integration)
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -529,7 +550,10 @@ def complete_google_oauth(code: str, state: str, user_id: str) -> dict:
             "access_token": tokens["access_token"],
             "refresh_token": tokens.get("refresh_token"),
             "token_expires_at": expires_at.isoformat(),
-            "metadata": {},
+            "metadata": {
+                "scopes": tokens.get("scope") or SCOPES,
+                "connected_at": datetime.now(timezone.utc).isoformat(),
+            },
         },
     )
     return updated or integration

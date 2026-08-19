@@ -8,6 +8,7 @@ from app.services.auth_context import get_current_context
 from app.services.google_service import (
     _google_configured,
     complete_google_oauth,
+    google_needs_reconnect,
     start_google_oauth,
     sync_google_calendar_events,
     sync_google_to_inbox,
@@ -63,6 +64,7 @@ def list_integration_statuses() -> list[dict]:
                 "status": (row or {}).get("status", "disconnected"),
                 "last_sync_at": (row or {}).get("last_sync_at"),
                 "configured": provider != "google" or _google_configured(),
+                "needs_reconnect": provider == "google" and google_needs_reconnect(row),
             }
         )
     return result

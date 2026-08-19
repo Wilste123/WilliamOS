@@ -707,6 +707,7 @@ export type IntegrationStatus = {
   status: string;
   last_sync_at: string | null;
   configured: boolean;
+  needs_reconnect?: boolean;
 };
 
 export async function fetchIntegrations() {

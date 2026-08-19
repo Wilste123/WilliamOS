@@ -8,6 +8,7 @@ import {
   connectIntegration,
   disconnectIntegration,
   fetchIntegrations,
+  syncGoogleCalendar,
   syncIntegration,
   type IntegrationStatus,
 } from "@/lib/api";
@@ -30,6 +31,9 @@ function IntegrationsPageInner() {
   const [items, setItems] = useState<IntegrationStatus[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const google = items.find((item) => item.provider === "google");
+  const googleNeedsReconnect = Boolean(google?.needs_reconnect);
 
   const load = useCallback(async () => {
     setItems(await fetchIntegrations());
@@ -64,7 +68,24 @@ function IntegrationsPageInner() {
     }
   }
 
-  async function handleSync(provider: string) {
+  async function handleSyncCalendar() {
+    setBusy("sync-calendar");
+    try {
+      const result = await syncGoogleCalendar();
+      setMessage(
+        result.synced_events != null
+          ? `Synkroniserte ${result.synced_events} kalenderhendelser.`
+          : "Kalender synkronisert."
+      );
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Kalendersynk feilet.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSyncInbox(provider: string) {
     setBusy(`sync-${provider}`);
     try {
       const result = await syncIntegration(provider);
@@ -98,6 +119,24 @@ function IntegrationsPageInner() {
         <p className="text-sm text-muted">Google Calendar, Gmail, Apple Health, Garmin og Strava.</p>
       </div>
 
+      {googleNeedsReconnect && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <p className="font-medium">Google må kobles til på nytt</p>
+          <p className="mt-1 text-amber-100/90">
+            Kalenderen krever oppdatert tilgang (<code className="text-xs">calendar.events</code>) for å
+            opprette og synke møter. Koble fra og koble til Google på nytt.
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => handleConnect("google", "oauth")}
+            className="mt-3 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-60"
+          >
+            Oppdater Google-tilgang
+          </button>
+        </div>
+      )}
+
       {message && (
         <p className="rounded-xl border border-border bg-zinc-900/60 px-4 py-3 text-sm">{message}</p>
       )}
@@ -111,6 +150,7 @@ function IntegrationsPageInner() {
                 <p className="text-sm text-muted">{item.description}</p>
                 <p className="mt-1 text-xs text-muted">
                   {statusLabel(item.status)}
+                  {item.needs_reconnect ? " · trenger ny tilgang" : ""}
                   {item.last_sync_at ? ` · sist synk ${String(item.last_sync_at).slice(0, 10)}` : ""}
                 </p>
                 {!item.configured && item.provider === "google" && (
@@ -122,14 +162,36 @@ function IntegrationsPageInner() {
               <div className="flex shrink-0 flex-col gap-2">
                 {item.status === "connected" ? (
                   <>
-                    <button
-                      type="button"
-                      disabled={busy !== null}
-                      onClick={() => handleSync(item.provider)}
-                      className="rounded-lg bg-accent px-3 py-1.5 text-xs text-white disabled:opacity-60"
-                    >
-                      Synk til Inbox
-                    </button>
+                    {item.provider === "google" && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy !== null || item.needs_reconnect}
+                          onClick={handleSyncCalendar}
+                          className="rounded-lg bg-accent px-3 py-1.5 text-xs text-white disabled:opacity-60"
+                        >
+                          Synk kalender
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy !== null || item.needs_reconnect}
+                          onClick={() => handleSyncInbox(item.provider)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted disabled:opacity-60"
+                        >
+                          Synk Gmail → Inbox
+                        </button>
+                      </>
+                    )}
+                    {item.provider !== "google" && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => handleSyncInbox(item.provider)}
+                        className="rounded-lg bg-accent px-3 py-1.5 text-xs text-white disabled:opacity-60"
+                      >
+                        Synk
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={busy !== null}
@@ -156,7 +218,11 @@ function IntegrationsPageInner() {
       </div>
 
       <p className="text-sm text-muted">
-        Google sender kalender og uleste e-poster som{" "}
+        Google-kalender vises i{" "}
+        <Link href="/calendar" className="text-accent">
+          Kalender
+        </Link>
+        . Gmail sendes som{" "}
         <Link href="/inbox" className="text-accent">
           Inbox-signaler
         </Link>

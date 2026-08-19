@@ -643,6 +643,29 @@ def handle_actions(message: str):
                 "actions": actions,
             }
 
+    calendar_triggers = (
+        "hva har jeg på kalenderen",
+        "vis kalenderen",
+        "kommende avtaler",
+        "kalender denne uka",
+        "kalender denne uken",
+    )
+    if any(trigger in lowered for trigger in calendar_triggers):
+        events = list_upcoming(days=7, limit=10)
+        if not events:
+            return {
+                "handled": True,
+                "response": "📅 Ingen kommende avtaler de neste 7 dagene.",
+                "actions": actions,
+            }
+        lines = ["📅 Kommende avtaler:"]
+        for event in events:
+            when = str(event.get("start_at") or "")[:16].replace("T", " ")
+            title = event.get("title") or "Avtale"
+            source = " · Google" if event.get("source") == "google" else ""
+            lines.append(f"- {title} ({when}){source}")
+        return {"handled": True, "response": "\n".join(lines), "actions": actions}
+
     weekly_triggers = (
         "hva bør jeg gjøre denne uka",
         "hva bør jeg gjøre denne uken",
