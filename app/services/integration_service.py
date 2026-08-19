@@ -9,6 +9,7 @@ from app.services.google_service import (
     _google_configured,
     complete_google_oauth,
     start_google_oauth,
+    sync_google_calendar_events,
     sync_google_to_inbox,
 )
 from app.services.storage_service import create_record, list_records, update_record
@@ -16,7 +17,7 @@ from app.services.storage_service import create_record, list_records, update_rec
 PROVIDERS = {
     "google": {
         "label": "Google Calendar & Gmail",
-        "description": "Kalender og uleste e-poster som Inbox-signaler",
+        "description": "Kalender (synk + opprett møter) og uleste e-poster som Inbox-signaler",
         "connect_type": "oauth",
     },
     "apple_health": {
@@ -102,6 +103,13 @@ def disconnect_provider(provider: str) -> dict:
         },
     )
     return updated or row
+
+
+def sync_google_calendar_only() -> dict:
+    row = _integration_row("google")
+    if not row or row.get("status") not in {"connected", "error"}:
+        raise RuntimeError("google er ikke tilkoblet.")
+    return sync_google_calendar_events(row, days=30)
 
 
 def sync_provider(provider: str) -> dict:

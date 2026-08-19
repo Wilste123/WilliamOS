@@ -11,6 +11,9 @@ _TOOL_ACTION_MAP: dict[str, tuple[str, str]] = {
     "create_decision": ("create_decision", "Opprett beslutning"),
     "update_task": ("update_task", "Oppdater oppgave"),
     "update_asset": ("update_asset", "Oppdater eiendel"),
+    "complete_task": ("update_task", "Fullfør oppgave"),
+    "capture_inbox": ("capture_inbox", "Fang i inbox"),
+    "save_memory": ("save_memory", "Lagre minne"),
 }
 
 

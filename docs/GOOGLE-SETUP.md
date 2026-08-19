@@ -6,9 +6,11 @@ WilliamOS (Mini-jarv) — setup, usage, and limitations
 
 ## Overview
 
-The Google integration pulls **calendar events** and **unread Gmail** into your **Inbox** as signals. You can then apply AI suggestions to create tasks, assets, and more.
+The Google integration syncs **calendar events** into WilliamOS (`calendar_events`) and pulls **unread Gmail** into your **Inbox** as signals. The AI can create meetings with write-back to Google Calendar when connected.
 
-**Stack:** Google Calendar API + Gmail API → FastAPI (`google_service.py`) → Inbox (`capture_inbox_entry`)
+**Stack:** Google Calendar API + Gmail API → FastAPI (`google_service.py`) → `calendar_events` + Inbox
+
+**Important:** OAuth scope changed from `calendar.readonly` to `calendar.events`. **Reconnect Google** under Integrasjoner if you connected before this update.
 
 ---
 
@@ -37,11 +39,8 @@ The full OAuth and sync path is wired in the app:
 ### Sync flow
 
 1. **Synk til Inbox** → `POST /integrations/google/sync`
-2. Fetches calendar + unread mail via Google APIs
-3. Creates Inbox lines like:
-   - `Google kalender: Møte (2026-08-18 10:00)`
-   - `Google e-post: Forsikring fornyes`
-4. Each line gets LLM/rule-based suggestions — apply them manually in Inbox
+2. Upserts calendar into `calendar_events` + fetches unread mail
+3. Gmail lines still appear in Inbox with LLM suggestions
 
 ---
 
@@ -114,7 +113,7 @@ Works with personal `@gmail.com` and Google Workspace accounts.
 ## Required Scopes
 
 ```
-https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/calendar.events
 https://www.googleapis.com/auth/gmail.readonly
 ```
 

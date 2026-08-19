@@ -27,8 +27,32 @@ const QUICK_ACTIONS = [
   "Hva bør jeg gjøre denne uka?",
 ];
 
+const TOOL_STATUS_LABELS: Record<string, string> = {
+  web_search: "søker på nettet",
+  search_documents: "søker i dokumenter",
+  capture_inbox: "lagrer i inbox",
+  complete_task: "fullfører oppgave",
+  save_memory: "lagrer minne",
+  create_calendar_event: "oppretter kalenderavtale",
+  sync_google_calendar: "synker Google Calendar",
+  list_upcoming_schedule: "henter kalender",
+  get_weekly_brief: "henter ukens brief",
+  get_priority_focus: "henter fokusliste",
+  create_task: "oppretter oppgave",
+  create_asset: "oppretter eiendel",
+  create_project: "oppretter prosjekt",
+  list_tasks: "henter oppgaver",
+  list_assets: "henter eiendeler",
+};
+
 function statusLabel(assistantName: string, phase: string | null): string {
-  if (phase === "tools") return `${assistantName} bruker verktøy…`;
+  if (!phase) return `${assistantName} tenker…`;
+  if (phase.startsWith("tool:")) {
+    const tool = phase.slice(5);
+    const label = TOOL_STATUS_LABELS[tool] ?? `bruker ${tool.replace(/_/g, " ")}`;
+    return `${assistantName} ${label}…`;
+  }
+  if (phase === "thinking") return `${assistantName} tenker…`;
   return `${assistantName} tenker…`;
 }
 
@@ -307,16 +331,34 @@ function ChatPageInner() {
             )}
             {message.role === "assistant" && message.sources && message.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
-                {message.sources.slice(0, 3).map((source, sourceIndex) => (
-                  <span
-                    key={sourceIndex}
-                    className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-muted"
-                  >
-                    {typeof source === "object" && source && "filename" in source
-                      ? String((source as { filename?: string }).filename)
-                      : "Dokument"}
-                  </span>
-                ))}
+                {message.sources.slice(0, 5).map((source, sourceIndex) => {
+                  const row = source as { type?: string; filename?: string; title?: string; url?: string };
+                  const isWeb = row.type === "web" && row.url;
+                  const label = isWeb
+                    ? row.title || row.url || "Nett"
+                    : row.filename || row.title || "Dokument";
+                  if (isWeb) {
+                    return (
+                      <a
+                        key={sourceIndex}
+                        href={row.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-accent hover:underline"
+                      >
+                        {label}
+                      </a>
+                    );
+                  }
+                  return (
+                    <span
+                      key={sourceIndex}
+                      className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-muted"
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
               </div>
             )}
           </div>

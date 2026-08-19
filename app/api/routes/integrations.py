@@ -8,6 +8,7 @@ from app.services.integration_service import (
     finish_google_connect,
     list_integration_statuses,
     start_google_connect,
+    sync_google_calendar_only,
     sync_provider,
 )
 
@@ -45,6 +46,14 @@ def google_complete(body: GoogleCompleteRequest):
 @router.post("/{provider}/disconnect")
 def disconnect_integration(provider: str):
     return disconnect_provider(provider)
+
+
+@router.post("/google/sync-calendar")
+def sync_google_calendar_route():
+    try:
+        return sync_google_calendar_only()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{provider}/sync")

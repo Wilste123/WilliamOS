@@ -265,6 +265,34 @@ class TestExecuteToolErrorPropagation:
         assert "id" in result
         assert "error" not in result
 
+    def test_web_search_tool_collects_sources(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.agents import pa_agent
+
+        monkeypatch.setattr(
+            pa_agent,
+            "search_web",
+            lambda query, num_results=5: [
+                {"title": "Hit", "url": "https://example.com", "snippet": "text"}
+            ],
+        )
+        web_sources: list[dict] = []
+        result = pa_agent._execute_tool(
+            "web_search",
+            {"query": "test"},
+            web_sources=web_sources,
+        )
+        assert len(result) == 1
+        assert web_sources[0]["type"] == "web"
+        assert web_sources[0]["url"] == "https://example.com"
+
+    def test_save_memory_tool(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.agents.pa_agent import _execute_tool
+
+        result = _execute_tool("save_memory", {"value": "Bruker foretrekker morgenmøter"})
+        assert result.get("saved") is True
+
 
 # ---------------------------------------------------------------------------
 # 3. End-to-end: chat action via regex fast path persists to store

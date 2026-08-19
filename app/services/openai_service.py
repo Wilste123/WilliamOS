@@ -213,7 +213,9 @@ def chat_completion_with_tools_stream(
                             entry["arguments"] += tc.function.arguments
 
         if finish_reason == "tool_calls" or tool_acc:
-            yield ("status", "tools")
+            for _, entry in sorted(tool_acc.items()):
+                if entry.get("name"):
+                    yield ("status", f"tool:{entry['name']}")
             current_messages.append(
                 {
                     "role": "assistant",

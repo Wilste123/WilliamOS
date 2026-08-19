@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.deps import attach_refreshed_token_headers
 from app.api.middleware.auth_context import auth_context_middleware
-from app.api.routes import assets, auth, chat, documents, finance, goals, health, memory, projects, tasks
+from app.api.routes import assets, auth, calendar, chat, documents, finance, goals, health, memory, projects, tasks
 from app.api.routes.decisions import router as decisions_router
 from app.api.routes.events import router as events_router
 from app.api.routes.inbox import router as inbox_router
@@ -55,6 +55,7 @@ app.include_router(integrations_router, prefix="/integrations", tags=["integrati
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(decisions_router, prefix="/decisions", tags=["decisions"])
 app.include_router(events_router, prefix="/events", tags=["events"])
+app.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 app.include_router(memory.router, prefix="/memory", tags=["memory"])
 app.include_router(usage_router, prefix="/usage", tags=["usage"])
 
@@ -92,5 +93,5 @@ def root():
         "app": "WilliamOS",
         "status": "running",
         "docs": "/docs",
-        "modules": ["auth", "inbox", "dashboard", "tasks", "projects", "assets", "documents", "decisions", "timeline", "chat"],
+        "modules": ["auth", "inbox", "dashboard", "tasks", "projects", "assets", "documents", "decisions", "timeline", "calendar", "chat"],
     }

@@ -30,6 +30,7 @@ Run in Supabase SQL Editor, **in order**:
 10. `migrations/2026-08-19_user_integrations_rls_fix.sql`
 11. `migrations/2026-08-19_goals_projects_linking.sql`
 12. `migrations/2026-08-19_memory_preferences.sql`
+13. `migrations/2026-08-20_calendar_events.sql`
 
 Create a Storage bucket named `documents` (or match `DOCUMENTS_BUCKET` in `.env`).
 

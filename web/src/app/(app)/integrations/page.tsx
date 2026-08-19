@@ -68,9 +68,12 @@ function IntegrationsPageInner() {
     setBusy(`sync-${provider}`);
     try {
       const result = await syncIntegration(provider);
+      const parts = [];
+      if (result.synced_events) parts.push(`${result.synced_events} kalenderhendelser`);
+      if (result.synced_signals) parts.push(`${result.synced_signals} inbox-signaler`);
       setMessage(
-        result.synced_signals
-          ? `Synkroniserte ${result.synced_signals} signaler til Inbox.`
+        parts.length
+          ? `Synkroniserte ${parts.join(" og ")}.`
           : result.message ?? "Synkronisert."
       );
       await load();

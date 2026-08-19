@@ -4,8 +4,16 @@ import re
 from app.services.openai_service import chat_completion_with_tools, chat_completion_with_tools_stream
 from app.services.profile_service import DEFAULT_ASSISTANT_NAME, get_assistant_name
 from app.agents.self_evolve import log_request
-from app.services.memory_service import get_recent_memory_text, save_memory
-from app.services.retrieval_service import build_document_context
+from app.services.memory_service import extract_memory_from_turn, get_recent_memory_text, save_memory
+from app.services.retrieval_service import build_document_context, search_documents
+from app.services.context_service import build_agent_context_blocks
+from app.services.chat_history_service import list_chat_messages
+from app.services.web_search_service import search_web
+from app.services.calendar_service import (
+    create_calendar_event,
+    list_upcoming,
+    sync_google_calendar,
+)
 from app.services.storage_service import list_records
 from app.services.action_engine import (
     build_dashboard_summary,
@@ -278,6 +286,137 @@ WILLIAMOS_TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Søk på nettet etter oppdatert ekstern informasjon (priser, nyheter, produkter, regler). Bruk når svaret ikke finnes i WilliamOS.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Søkeord eller spørsmål"},
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Antall treff (1–5)",
+                        "minimum": 1,
+                        "maximum": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_documents",
+            "description": "Søk i lagrede dokumenter etter nøkkelord. Bruk når brukeren spør om innhold i filer/dokumenter.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Søketekst"},
+                    "asset_id": {"type": "string"},
+                    "project_id": {"type": "string"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "capture_inbox",
+            "description": "Fang raskt opp en idé, tanke eller notat i inbox for senere behandling.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Teksten som skal fanges"},
+                },
+                "required": ["text"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "complete_task",
+            "description": "Marker en oppgave som fullført. Oppgi task_id eller title.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "ID til oppgaven"},
+                    "title": {"type": "string", "description": "Tittel hvis ID er ukjent"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_memory",
+            "description": "Lagre et varig faktum i assistentens minne for fremtidige samtaler.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "string", "description": "Faktum som skal huskes"},
+                    "category": {"type": "string", "description": "Valgfri kategori"},
+                },
+                "required": ["value"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_upcoming_schedule",
+            "description": "Hent kommende hendelser og avtaler de neste dagene. Bruk når brukeren spør om kalender/plan.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Antall dager fremover (standard 7)",
+                        "minimum": 1,
+                        "maximum": 30,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_calendar_event",
+            "description": "Opprett kalenderhendelse/avtale. Synkroniseres til Google Calendar hvis tilkoblet.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Tittel på avtalen"},
+                    "start_at": {
+                        "type": "string",
+                        "description": "Starttid ISO-8601, f.eks. 2026-08-20T10:00:00",
+                    },
+                    "end_at": {"type": "string", "description": "Sluttid ISO-8601"},
+                    "all_day": {"type": "boolean", "description": "Heldagshendelse"},
+                    "location": {"type": "string"},
+                    "description": {"type": "string"},
+                    "sync_google": {
+                        "type": "boolean",
+                        "description": "Opprett også i Google Calendar (standard true)",
+                    },
+                },
+                "required": ["title", "start_at"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sync_google_calendar",
+            "description": "Hent og oppdater kalender fra Google Calendar.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -285,7 +424,13 @@ WILLIAMOS_TOOLS: list[dict] = [
 # Tool executor – maps function names to real Python calls
 # ---------------------------------------------------------------------------
 
-def _execute_tool(func_name: str, args: dict, *, action_log: list[dict] | None = None) -> object:
+def _execute_tool(
+    func_name: str,
+    args: dict,
+    *,
+    action_log: list[dict] | None = None,
+    web_sources: list[dict] | None = None,
+) -> object:
     clean = {k: v for k, v in args.items() if v is not None}
 
     try:
@@ -334,6 +479,59 @@ def _execute_tool(func_name: str, args: dict, *, action_log: list[dict] | None =
             if clean.get("project_id"):
                 docs = [d for d in docs if d.get("project_id") == clean["project_id"]]
             result = docs
+        elif func_name == "web_search":
+            num = int(clean.get("num_results") or 5)
+            result = search_web(clean.get("query", ""), num_results=num)
+            if web_sources is not None and isinstance(result, list):
+                for hit in result:
+                    if hit.get("url"):
+                        web_sources.append(
+                            {
+                                "type": "web",
+                                "title": hit.get("title") or hit.get("url"),
+                                "url": hit.get("url"),
+                                "snippet": hit.get("snippet") or "",
+                            }
+                        )
+        elif func_name == "search_documents":
+            result = search_documents(
+                clean.get("query", ""),
+                asset_id=clean.get("asset_id"),
+                project_id=clean.get("project_id"),
+            )
+        elif func_name == "capture_inbox":
+            text = clean.get("text", "").strip()
+            result = capture_inbox_entry(text) if text else {"error": "Tom inbox-tekst"}
+        elif func_name == "complete_task":
+            task_id = clean.get("task_id")
+            if not task_id and clean.get("title"):
+                title_lower = clean["title"].lower()
+                for task in list_records("tasks"):
+                    if str(task.get("title", "")).lower() == title_lower:
+                        task_id = task.get("id")
+                        break
+            if not task_id:
+                result = {"error": "Fant ikke oppgaven"}
+            else:
+                result = update_task(
+                    str(task_id),
+                    {"status": "completed", "completed": True},
+                ) or {"error": "Oppgave ikke funnet"}
+        elif func_name == "save_memory":
+            value = clean.get("value", "").strip()
+            result = (
+                save_memory(value, category=clean.get("category"), source="chat")
+                if value
+                else {"error": "Tomt minne"}
+            )
+        elif func_name == "list_upcoming_schedule":
+            days = int(clean.get("days") or 7)
+            result = {"days": days, "events": list_upcoming(days=days, limit=20)}
+        elif func_name == "create_calendar_event":
+            sync_google = clean.pop("sync_google", True)
+            result = create_calendar_event(clean, sync_google=bool(sync_google))
+        elif func_name == "sync_google_calendar":
+            result = sync_google_calendar()
         else:
             result = {"error": f"Ukjent funksjon: {func_name}"}
 
@@ -515,14 +713,26 @@ def _build_agent_messages(
         {"role": "system", "content": f"Relevant saved memory:\n{memory}"},
     ]
 
+    for block in build_agent_context_blocks():
+        messages.append({"role": "system", "content": block})
+
     sources: list[dict] = []
     if use_documents:
         doc_context, sources = build_document_context(message, document_id=document_id)
         if doc_context:
             messages.append({"role": "system", "content": doc_context})
 
-    if history:
-        messages.extend(_normalize_history(history))
+    normalized = _normalize_history(history or [])
+    if len(normalized) < 4:
+        try:
+            server_history = _normalize_history(list_chat_messages(limit=20))
+            if len(server_history) > len(normalized):
+                normalized = server_history
+        except Exception:
+            pass
+
+    if normalized:
+        messages.extend(normalized)
 
     messages.append({"role": "user", "content": message})
     return messages, sources
@@ -578,10 +788,16 @@ def ask_agent_stream(
         message, use_documents=use_documents, history=history, document_id=document_id
     )
     completed_actions: list[dict] = []
+    web_sources: list[dict] = []
     assistant_text = ""
 
     def tool_handler(func_name: str, args: dict):
-        return _execute_tool(func_name, args, action_log=completed_actions)
+        return _execute_tool(
+            func_name,
+            args,
+            action_log=completed_actions,
+            web_sources=web_sources,
+        )
 
     try:
         for kind, value in chat_completion_with_tools_stream(
@@ -592,9 +808,10 @@ def ask_agent_stream(
             else:
                 assistant_text += value
                 yield {"type": "token", "text": value}
+        extract_memory_from_turn(message, assistant_text)
         yield {
             "type": "done",
-            "sources": sources,
+            "sources": sources + web_sources,
             "actions": merge_chat_actions(completed_actions, assistant_text),
         }
     except Exception as exc:

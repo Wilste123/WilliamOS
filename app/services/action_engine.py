@@ -1073,6 +1073,8 @@ def build_weekly_brief() -> dict:
 
 
 def build_dashboard_summary() -> dict:
+    from app.services.calendar_service import list_upcoming
+
     tasks = list_records("tasks")
     projects = list_records("projects")
     assets = list_records("assets")
@@ -1090,10 +1092,13 @@ def build_dashboard_summary() -> dict:
             task.get("due_date") or "9999-12-31T23:59:59",
         ),
     )[:5]
-    upcoming_events = sorted(
-        [event for event in events if event.get("event_date")],
-        key=lambda event: event.get("event_date") or "9999-12-31T23:59:59",
-    )[:5]
+    try:
+        upcoming_events = list_upcoming(days=14, limit=5)
+    except Exception:
+        upcoming_events = sorted(
+            [event for event in events if event.get("event_date")],
+            key=lambda event: event.get("event_date") or "9999-12-31T23:59:59",
+        )[:5]
     return {
         "metrics": {
             "assets": len(assets),

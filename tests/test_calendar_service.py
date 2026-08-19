@@ -1,0 +1,70 @@
+"""Tests for calendar_events service."""
+
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from tests.test_persistence import _make_fake_supabase, _patch_supabase
+
+
+def test_create_and_list_calendar_event(monkeypatch):
+    _patch_supabase(monkeypatch)
+    from app.services.calendar_service import create_calendar_event, list_upcoming
+
+    start = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    record = create_calendar_event(
+        {
+            "title": "Møte med rørlegger",
+            "start_at": start,
+            "end_at": (datetime.now(timezone.utc) + timedelta(days=1, hours=1)).isoformat(),
+        },
+        sync_google=False,
+    )
+    assert record["title"] == "Møte med rørlegger"
+    upcoming = list_upcoming(days=7)
+    assert any(row["id"] == record["id"] for row in upcoming)
+
+
+def test_sync_google_calendar_upserts(monkeypatch):
+    store = {"calendar_events": [], "user_integrations": []}
+    _patch_supabase(monkeypatch, _make_fake_supabase(store))
+    from app.services import calendar_service
+    from app.services.google_service import sync_google_calendar_events
+
+    integration = {
+        "id": "int-1",
+        "provider": "google",
+        "status": "connected",
+        "access_token": "token",
+        "refresh_token": "refresh",
+    }
+    store["user_integrations"].append(integration)
+
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    google_event = {
+        "id": "google-event-1",
+        "summary": "Teams standup",
+        "start": {"dateTime": tomorrow},
+        "end": {"dateTime": tomorrow},
+    }
+
+    monkeypatch.setattr(
+        "app.services.google_service.fetch_calendar_events",
+        lambda access_token, days=7, max_results=50: [google_event],
+    )
+    monkeypatch.setattr(
+        "app.services.google_service._ensure_access_token",
+        lambda integration: "token",
+    )
+
+    result = sync_google_calendar_events(integration, days=7)
+    assert result["created"] == 1
+    assert len(store["calendar_events"]) == 1
+    assert store["calendar_events"][0]["external_id"] == "google-event-1"
+
+    result2 = sync_google_calendar_events(integration, days=7)
+    assert result2["updated"] == 1
+    assert result2["created"] == 0

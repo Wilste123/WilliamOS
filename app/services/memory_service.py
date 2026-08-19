@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from app.services.storage_service import create_record, list_records
 
 _MEMORY_EVENT_TYPES = frozenset(
@@ -117,3 +119,48 @@ def save_memory(
         payload["source"] = source
     record = create_record("memory_items", payload)
     return {"saved": True, "data": record}
+
+
+def extract_memory_from_turn(user_message: str, assistant_text: str) -> list[dict]:
+    """Extract 0–2 durable facts from a chat turn (best-effort, no-op on failure)."""
+    from app.services.openai_service import chat_completion
+
+    user = (user_message or "").strip()
+    assistant = (assistant_text or "").strip()
+    if len(user) < 8 or len(assistant) < 40:
+        return []
+
+    prompt = (
+        "Du analyserer en samtale mellom bruker og assistent.\n"
+        "Returner 0–2 korte, varige fakta brukeren sannsynligvis vil huske senere "
+        "(preferanser, planer, viktige detaljer om eiendeler/prosjekter).\n"
+        "Ikke lagre midlertidige spørsmål, høflighetsfraser eller generell smalltalk.\n"
+        "Svar som JSON-array med strenger, f.eks. [\"Bruker vil selge båten i april\"]. "
+        "Tom array [] hvis ingenting bør lagres.\n\n"
+        f"Bruker: {user}\nAssistent: {assistant[:1200]}"
+    )
+
+    try:
+        raw = chat_completion(
+            [
+                {"role": "system", "content": "Returner kun gyldig JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
+        )
+        parsed = json.loads(raw.strip())
+    except Exception:
+        return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    saved: list[dict] = []
+    for item in parsed[:2]:
+        if not isinstance(item, str):
+            continue
+        value = item.strip()
+        if len(value) < 8:
+            continue
+        saved.append(save_memory(value, source="chat_extraction"))
+    return saved

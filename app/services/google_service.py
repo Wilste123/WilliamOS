@@ -27,7 +27,7 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 CALENDAR_BASE = "https://www.googleapis.com/calendar/v3"
 GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1"
 SCOPES = (
-    "https://www.googleapis.com/auth/calendar.readonly "
+    "https://www.googleapis.com/auth/calendar.events "
     "https://www.googleapis.com/auth/gmail.readonly"
 )
 
@@ -79,6 +79,22 @@ def _http_get(url: str, access_token: str) -> dict:
             return json.loads(response.read().decode())
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Kunne ikke hente fra Google: {exc.reason}") from exc
+
+
+def _http_json(url: str, access_token: str, payload: dict, *, method: str = "POST") -> dict:
+    body = json.dumps(payload).encode()
+    request = urllib.request.Request(url, data=body, method=method)
+    request.add_header("Authorization", f"Bearer {access_token}")
+    request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+            raw = response.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")
+        raise RuntimeError(f"Google Calendar feilet ({exc.code}): {detail[:200]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Kunne ikke kontakte Google: {exc.reason}") from exc
 
 
 def build_google_auth_url(oauth_state: str) -> str:
@@ -152,14 +168,14 @@ def _ensure_access_token(integration: dict) -> str | None:
     return access
 
 
-def fetch_calendar_events(access_token: str, days: int = 7) -> list[dict]:
+def fetch_calendar_events(access_token: str, days: int = 7, *, max_results: int = 50) -> list[dict]:
     start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     end = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat().replace("+00:00", "Z")
     params = urllib.parse.urlencode(
         {
             "timeMin": start,
             "timeMax": end,
-            "maxResults": "15",
+            "maxResults": str(max_results),
             "singleEvents": "true",
             "orderBy": "startTime",
         }
@@ -169,9 +185,8 @@ def fetch_calendar_events(access_token: str, days: int = 7) -> list[dict]:
     return payload.get("items") or []
 
 
-def get_connected_google_access_token() -> str | None:
-    """Return a valid Google access token for the current user's integration."""
-    integration = next(
+def get_connected_google_integration() -> dict | None:
+    return next(
         (
             row
             for row in list_records("user_integrations")
@@ -179,9 +194,177 @@ def get_connected_google_access_token() -> str | None:
         ),
         None,
     )
+
+
+def get_connected_google_access_token() -> str | None:
+    """Return a valid Google access token for the current user's integration."""
+    integration = get_connected_google_integration()
     if not integration:
         return None
     return _ensure_access_token(integration)
+
+
+def _google_datetime(value: datetime, *, all_day: bool = False) -> dict:
+    if all_day:
+        return {"date": value.astimezone(timezone.utc).strftime("%Y-%m-%d")}
+    iso = value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {"dateTime": iso, "timeZone": "UTC"}
+
+
+def _parse_google_event_times(event: dict) -> tuple[str, str | None, bool]:
+    start = event.get("start") or {}
+    end = event.get("end") or {}
+    all_day = bool(start.get("date") and not start.get("dateTime"))
+    if all_day:
+        start_raw = start.get("date")
+        start_at = f"{start_raw}T00:00:00+00:00" if start_raw else None
+        end_raw = end.get("date")
+        end_at = f"{end_raw}T00:00:00+00:00" if end_raw else None
+    else:
+        start_at = start.get("dateTime")
+        end_at = end.get("dateTime")
+    return start_at, end_at, all_day
+
+
+def _calendar_record_from_google(event: dict) -> dict:
+    start_at, end_at, all_day = _parse_google_event_times(event)
+    return {
+        "title": event.get("summary") or "Kalenderhendelse",
+        "description": event.get("description"),
+        "location": event.get("location"),
+        "start_at": start_at,
+        "end_at": end_at,
+        "all_day": all_day,
+        "source": "google",
+        "external_id": event.get("id"),
+        "calendar_id": "primary",
+        "visibility": "household",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def create_google_calendar_event(integration: dict, record: dict) -> dict:
+    access = _ensure_access_token(integration)
+    if not access:
+        raise RuntimeError("Google-token er utløpt.")
+
+    start = datetime.fromisoformat(str(record["start_at"]).replace("Z", "+00:00"))
+    end_raw = record.get("end_at")
+    end = (
+        datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
+        if end_raw
+        else start + timedelta(hours=1)
+    )
+    all_day = bool(record.get("all_day"))
+
+    payload = {
+        "summary": record.get("title") or "Hendelse",
+        "description": record.get("description"),
+        "location": record.get("location"),
+        "start": _google_datetime(start, all_day=all_day),
+        "end": _google_datetime(end, all_day=all_day),
+    }
+    calendar_id = record.get("calendar_id") or "primary"
+    url = f"{CALENDAR_BASE}/calendars/{urllib.parse.quote(calendar_id)}/events"
+    return _http_json(url, access, payload, method="POST")
+
+
+def update_google_calendar_event(integration: dict, record: dict) -> dict:
+    access = _ensure_access_token(integration)
+    external_id = record.get("external_id")
+    if not access or not external_id:
+        raise RuntimeError("Mangler Google event ID.")
+
+    start = datetime.fromisoformat(str(record["start_at"]).replace("Z", "+00:00"))
+    end_raw = record.get("end_at")
+    end = (
+        datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
+        if end_raw
+        else start + timedelta(hours=1)
+    )
+    all_day = bool(record.get("all_day"))
+    calendar_id = record.get("calendar_id") or "primary"
+
+    payload = {
+        "summary": record.get("title") or "Hendelse",
+        "description": record.get("description"),
+        "location": record.get("location"),
+        "start": _google_datetime(start, all_day=all_day),
+        "end": _google_datetime(end, all_day=all_day),
+    }
+    url = (
+        f"{CALENDAR_BASE}/calendars/{urllib.parse.quote(calendar_id)}"
+        f"/events/{urllib.parse.quote(external_id)}"
+    )
+    return _http_json(url, access, payload, method="PATCH")
+
+
+def delete_google_calendar_event(
+    integration: dict,
+    external_id: str,
+    *,
+    calendar_id: str = "primary",
+) -> None:
+    access = _ensure_access_token(integration)
+    if not access:
+        raise RuntimeError("Google-token er utløpt.")
+    url = (
+        f"{CALENDAR_BASE}/calendars/{urllib.parse.quote(calendar_id)}"
+        f"/events/{urllib.parse.quote(external_id)}"
+    )
+    request = urllib.request.Request(url, method="DELETE")
+    request.add_header("Authorization", f"Bearer {access}")
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return
+        raise RuntimeError(f"Kunne ikke slette Google-hendelse ({exc.code})") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Kunne ikke kontakte Google: {exc.reason}") from exc
+
+
+def sync_google_calendar_events(integration: dict, *, days: int = 30) -> dict:
+    """Upsert Google Calendar events into calendar_events."""
+    access = _ensure_access_token(integration)
+    if not access:
+        raise RuntimeError("Google er ikke tilkoblet eller token er utløpt.")
+
+    google_events = fetch_calendar_events(access, days=days, max_results=100)
+    existing = [
+        row
+        for row in list_records("calendar_events")
+        if row.get("source") == "google" and row.get("external_id")
+    ]
+    by_external = {row["external_id"]: row for row in existing}
+
+    created = 0
+    updated = 0
+    for event in google_events:
+        external_id = event.get("id")
+        if not external_id:
+            continue
+        payload = _calendar_record_from_google(event)
+        current = by_external.get(external_id)
+        if current:
+            update_record("calendar_events", current["id"], payload)
+            updated += 1
+        else:
+            create_record("calendar_events", payload)
+            created += 1
+
+    update_record(
+        "user_integrations",
+        integration["id"],
+        {"last_sync_at": datetime.now(timezone.utc).isoformat(), "status": "connected"},
+    )
+    return {
+        "provider": "google",
+        "synced_events": created + updated,
+        "created": created,
+        "updated": updated,
+    }
 
 
 def _collect_gmail_attachments(part: dict | None, out: list[dict]) -> None:
@@ -257,25 +440,14 @@ def fetch_unread_emails(access_token: str, limit: int = 8) -> list[dict]:
 
 
 def sync_google_to_inbox(integration: dict) -> dict:
-    """Pull calendar + unread mail into Inbox signals."""
+    """Pull unread mail into Inbox and sync calendar into calendar_events."""
     access = _ensure_access_token(integration)
     if not access:
         raise RuntimeError("Google er ikke tilkoblet eller token er utløpt.")
 
+    calendar_result = sync_google_calendar_events(integration, days=30)
     created = 0
     try:
-        for event in fetch_calendar_events(access):
-            title = event.get("summary") or "Kalenderhendelse"
-            start_raw = (event.get("start") or {}).get("dateTime") or (event.get("start") or {}).get(
-                "date"
-            ) or ""
-            start = str(start_raw)[:16].replace("T", " ")
-            capture_inbox_entry(
-                f"Google kalender: {title}" + (f" ({start})" if start else ""),
-                fast=True,
-            )
-            created += 1
-
         for message in fetch_unread_emails(access):
             message_id = message.get("id") or ""
             subject = message.get("subject") or "Uten emne"
@@ -298,7 +470,11 @@ def sync_google_to_inbox(integration: dict) -> dict:
         integration["id"],
         {"last_sync_at": datetime.now(timezone.utc).isoformat(), "status": "connected"},
     )
-    return {"synced_signals": created, "provider": "google"}
+    return {
+        "synced_signals": created,
+        "synced_events": calendar_result.get("synced_events", 0),
+        "provider": "google",
+    }
 
 
 def start_google_oauth(user_id: str) -> dict:

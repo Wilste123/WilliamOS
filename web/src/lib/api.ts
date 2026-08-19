@@ -669,7 +669,8 @@ export async function disconnectIntegration(provider: string) {
 }
 
 export async function syncIntegration(provider: string) {
-  return request<{ synced_signals?: number; message?: string }>(`/integrations/${provider}/sync`, {
-    method: "POST",
-  });
+  return request<{ synced_signals?: number; synced_events?: number; message?: string }>(
+    `/integrations/${provider}/sync`,
+    { method: "POST" }
+  );
 }
