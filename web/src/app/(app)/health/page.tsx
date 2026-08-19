@@ -3,16 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { MigrationRequiredNotice } from "@/components/MigrationRequiredNotice";
+import { StatCard } from "@/components/StatCard";
 import { fetchHealthSummary, type HealthSummary } from "@/lib/api";
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-zinc-950/50 p-4">
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
 
 export default function HealthPage() {
   const [summary, setSummary] = useState<HealthSummary | null>(null);
@@ -43,28 +36,22 @@ export default function HealthPage() {
       </div>
 
       {error && !summary && (
-        <p className="text-sm text-red-400">
-          Kunne ikke laste helse. Kjør migrasjonen{" "}
-          <code className="text-xs">2026-08-17_finance_health_integrations.sql</code> i Supabase.
-        </p>
+        <MigrationRequiredNotice migrationFile="2026-08-17_finance_health_integrations.sql" />
       )}
 
       {summary && (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <MetricCard
+            <StatCard
               label="Vekt nå"
               value={summary.latest_weight_kg != null ? `${summary.latest_weight_kg} kg` : "—"}
             />
-            <MetricCard
-              label="Mål"
-              value={goalTitle ?? "—"}
-            />
-            <MetricCard
+            <StatCard label="Mål" value={goalTitle ?? "—"} />
+            <StatCard
               label="Søvn (7d snitt)"
               value={summary.avg_sleep_hours_7d != null ? `${summary.avg_sleep_hours_7d} t` : "—"}
             />
-            <MetricCard
+            <StatCard
               label="Aktivitet (7d snitt)"
               value={
                 summary.avg_activity_minutes_7d != null
@@ -101,6 +88,7 @@ export default function HealthPage() {
       <CreateRecordForm
         path="/health-data/metrics"
         submitLabel="Registrer metric"
+        showVisibility
         fields={[
           {
             name: "metric_type",

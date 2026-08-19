@@ -1,6 +1,6 @@
 # WilliamOS — Getting Started
 
-Mini-jarv (WilliamOS) runs as **FastAPI backend + Next.js frontend**. Streamlit in `frontend/` is lab-only.
+Mini-jarv (WilliamOS) runs as **FastAPI backend + Next.js PWA**.
 
 ---
 
@@ -28,6 +28,8 @@ Run in Supabase SQL Editor, **in order**:
 8. `migrations/2026-08-17_quarantine_orphan_records.sql`
 9. `migrations/2026-08-18_google_integration.sql`
 10. `migrations/2026-08-19_user_integrations_rls_fix.sql`
+11. `migrations/2026-08-19_goals_projects_linking.sql`
+12. `migrations/2026-08-19_memory_preferences.sql`
 
 Create a Storage bucket named `documents` (or match `DOCUMENTS_BUCKET` in `.env`).
 
@@ -91,12 +93,6 @@ If the app hangs or shows module errors, use a clean dev start:
 cd web && npm run dev:clean
 ```
 
-**Terminal 3 — Streamlit lab (optional):**
-
-```bash
-streamlit run frontend/streamlit_app.py
-```
-
 ---
 
 ## 5. iPhone via ngrok
@@ -129,7 +125,6 @@ python3 scripts/seed_demo_data.py
 |------|----------------|
 | Production UI | http://localhost:3000 |
 | API docs | http://localhost:8000/docs |
-| Streamlit lab | http://localhost:8501 |
 | Smoke test | `scripts/smoke_test.sh` |
 | MVP scope | [MVP-FOCUS.md](../MVP-FOCUS.md) |
 | 7-day test | [SEVEN-DAY-TEST.md](./SEVEN-DAY-TEST.md) |

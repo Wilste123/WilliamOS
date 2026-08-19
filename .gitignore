@@ -19,3 +19,6 @@ requests_log_local.txt
 
 web/node_modules/
 web/.next/
+
+.cursor/
+docs/secrets*.mf

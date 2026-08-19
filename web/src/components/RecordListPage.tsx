@@ -16,6 +16,7 @@ type RecordListPageProps = {
   deletable?: boolean;
   deleteConfirmMessage?: string;
   itemHref?: (item: Record<string, unknown>) => string | undefined;
+  itemActions?: (item: Record<string, unknown>, reload: () => void) => ReactNode;
   children?: ReactNode;
 };
 
@@ -36,6 +37,7 @@ export function RecordListPage({
   deletable = false,
   deleteConfirmMessage = "Slette posten?",
   itemHref,
+  itemActions,
   children,
 }: RecordListPageProps) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
@@ -77,21 +79,9 @@ export function RecordListPage({
         <div className="space-y-3">
           {items.map((item) => {
             const href = itemHref?.(item);
-            const card = (
-              <article
-                key={String(item.id)}
-                className={`flex items-start justify-between gap-3 rounded-2xl border border-border p-4 ${
-                  href ? "transition hover:border-accent/40" : ""
-                }`}
-              >
-                <div className="min-w-0 space-y-1">
-                  {fields.map((field) => (
-                    <p key={field} className="text-sm">
-                      <span className="text-muted capitalize">{field.replace(/_/g, " ")}: </span>
-                      {fieldValue(item, field)}
-                    </p>
-                  ))}
-                </div>
+            const actions = (
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                {itemActions?.(item, load)}
                 {deletable && (
                   <ConfirmDeleteButton
                     confirmMessage={deleteConfirmMessage}
@@ -102,6 +92,23 @@ export function RecordListPage({
                     }}
                   />
                 )}
+              </div>
+            );
+            const card = (
+              <article
+                className={`flex items-start justify-between gap-3 rounded-2xl border border-border p-4 ${
+                  href ? "transition hover:border-accent/40" : ""
+                }`}
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  {fields.map((field) => (
+                    <p key={field} className="break-words text-sm">
+                      <span className="text-muted capitalize">{field.replace(/_/g, " ")}: </span>
+                      {fieldValue(item, field)}
+                    </p>
+                  ))}
+                </div>
+                {actions}
               </article>
             );
 
@@ -110,7 +117,7 @@ export function RecordListPage({
                 {card}
               </Link>
             ) : (
-              card
+              <div key={String(item.id)}>{card}</div>
             );
           })}
           {!error && items.length === 0 && <p className="text-sm text-muted">{emptyLabel}</p>}

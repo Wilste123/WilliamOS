@@ -111,7 +111,7 @@ export function DocumentList({
               className="flex flex-col gap-3 rounded-2xl border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
             >
               <div className="min-w-0 space-y-1">
-                <p className="font-medium">{filename}</p>
+                <p className="truncate font-medium">{filename}</p>
                 <p className="text-sm text-muted">
                   {String(doc.source_module ?? "documents")} · {formatDate(doc.created_at) ?? "—"}
                 </p>

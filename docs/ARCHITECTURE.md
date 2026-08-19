@@ -16,16 +16,11 @@ WilliamOS is in **prototype phase**. The architecture is intentionally moving to
 | `app/models/` | Domain and data types |
 | `app/database/` | Supabase wrappers; schema in `migrations/` |
 | `app/api/` | FastAPI — **primary API** for Next.js (auth, CRUD, chat SSE, usage) |
-| `web/` | Next.js production frontend (Mini-jarv) — **MVP in daily testing** |
-| `frontend/` | Streamlit lab — **temporary**, calls services directly |
+| `web/` | Next.js PWA — production UI via FastAPI |
 
-**Known prototype shortcuts (not target):**
+**Notes:**
 
-- Streamlit still calls `app/services` without FastAPI
-- Some modules exist in API + Streamlit but are hidden from MVP nav (projects, decisions, dashboard)
-- Streamlit will be retired after 7-day MVP test passes without it
-
-These are documented gaps, not design goals. See [Migration Plan](#migration-plan).
+- Next.js is the only client UI — all traffic goes through FastAPI
 
 ---
 
@@ -66,13 +61,12 @@ These are documented gaps, not design goals. See [Migration Plan](#migration-pla
 - All production clients call **FastAPI only** for application data and AI
 - Frontend never calls OpenAI or Supabase directly
 - Python backend contains all business logic, agent logic, and integrations
-- Streamlit is deleted without rewriting services, domain, or infrastructure
 
 ---
 
 ## Layer Responsibilities
 
-### Next.js frontend (`web/` — target)
+### Next.js frontend (`web/`)
 
 | Responsibility | Detail |
 |----------------|--------|
@@ -81,24 +75,7 @@ These are documented gaps, not design goals. See [Migration Plan](#migration-pla
 | API calls | Fetch/mutate via FastAPI with JWT |
 | Not allowed | Business logic, OpenAI, Supabase data/storage, domain validation |
 
-**Stack:** Next.js, React, Tailwind, shadcn/ui, PWA first, Capacitor later.
-
-### Streamlit frontend (`frontend/` — temporary prototype)
-
-| File / dir | Responsibility |
-|------------|----------------|
-| `streamlit_app.py` | Page config, navigation, dispatch |
-| `ui/<page>.py` | One `render_<page>()` per page — widgets + service calls |
-| `components/` | Shared Streamlit helpers |
-
-**Rules (same boundary as target UI):**
-
-- May call `app/services` and `app/agents` (transitional — target is FastAPI)
-- Must **not** import from `app/database`
-- Must **not** contain business logic
-- Must **not** call OpenAI or Supabase directly
-
-Streamlit is lab/MVP only. Do not build new long-term features here once `web/` exists.
+**Stack:** Next.js, React, Tailwind, PWA first, Capacitor later.
 
 ### API layer (`app/api/`)
 
@@ -122,7 +99,7 @@ GET  /documents          POST /documents/upload
 
 ### Application layer (`app/services/`, `app/agents/`)
 
-Orchestration and use cases. UI-agnostic — callable from FastAPI, CLI, workers, or (temporarily) Streamlit.
+Orchestration and use cases. UI-agnostic — callable from FastAPI, CLI, or workers.
 
 | Area | Examples |
 |------|----------|
@@ -133,14 +110,14 @@ Orchestration and use cases. UI-agnostic — callable from FastAPI, CLI, workers
 **Rules:**
 
 - May import `app/models` and infrastructure (`app/database/`, OpenAI wrappers)
-- Must **not** import `streamlit` or any frontend code
+- Must **not** import any frontend code
 - AI suggests; Action Engine executes
 
 ### Domain layer (`app/models/`)
 
 Pure Python types — User, Asset, Task, Project, Decision, Event, Document, …
 
-**Rules:** No I/O, no Streamlit, no FastAPI, no OpenAI, no Supabase.
+**Rules:** No I/O, no FastAPI, no OpenAI, no Supabase.
 
 ### Infrastructure layer (`app/database/`, OpenAI, future integrations)
 
@@ -152,7 +129,6 @@ Thin wrappers around external systems. Provider changes affect only this layer.
 
 ```
 Allowed:
-  frontend/ (Streamlit)  →  app/services, app/agents     [prototype only]
   web/ (Next.js)         →  FastAPI (HTTP)
   app/api/               →  app/services, app/agents, app/models
   app/services/          →  app/models, app/database, infrastructure
@@ -161,10 +137,9 @@ Allowed:
 
 Not allowed:
   app/models/            →  any upper layer
-  app/services/          →  frontend/, web/
-  app/services/          →  streamlit
-  frontend/, web/        →  app/database/
-  frontend/, web/        →  OpenAI directly
+  app/services/          →  web/
+  web/                   →  app/database/
+  web/                   →  OpenAI directly
   web/                   →  Supabase data/storage directly
 ```
 
@@ -174,15 +149,13 @@ Imports flow **downward only**. If a lower layer needs something from above, ext
 
 ## Why Next.js for Production UI
 
-| Concern | Streamlit (prototype) | Next.js (target) |
-|---------|----------------------|------------------|
-| Mobile UX | Poor — desktop dashboard patterns | Mobile-first, PWA, touch-native patterns |
-| Design quality | Limited styling | Tailwind + shadcn/ui — premium feel |
-| Product scale | Single-script pages | Component architecture for many modules |
-| Multi-client | Streamlit-only | Same React UI → PWA → Capacitor |
-| Separation | Tends to mix UI and logic | Clear UI/API boundary via FastAPI |
-
-Streamlit proved the concept. Next.js is the production path.
+| Concern | Benefit |
+|---------|---------|
+| Mobile UX | Mobile-first, PWA, touch-native patterns |
+| Design quality | Tailwind — premium, consistent styling |
+| Product scale | Component architecture for many modules |
+| Multi-client | Same React UI → PWA → Capacitor |
+| Separation | Clear UI/API boundary via FastAPI |
 
 **Alternative:** Vite + React SPA can work for UI-only clients, but WilliamOS standardizes on **Next.js** for routing, layouts, and the PWA → Capacitor roadmap.
 
@@ -201,18 +174,16 @@ Build Capacitor only when PWA traction justifies store distribution. Do not main
 
 ---
 
-## Migration Plan
+## Migration Plan (completed phases)
 
-| Phase | Goal |
-|-------|------|
-| **1. Thin Streamlit** | UI in `frontend/` calls services only — no logic, no direct OpenAI/Supabase |
-| **2. FastAPI surface** | Expose services via FastAPI; auth middleware; OpenAPI schema |
-| **3. Next.js frontend** | Build `web/` against FastAPI — auth, chat, inbox, dashboard first |
-| **4. Streamlit → lab** | Stop feature development on Streamlit; internal/admin use only |
-| **5. PWA** | Manifest, service worker, mobile navigation in Next.js |
-| **6. Capacitor** | Wrap Next.js for store apps if product traction exists |
+| Phase | Status |
+|-------|--------|
+| **1. FastAPI surface** | Done — auth middleware, OpenAPI, CRUD, chat SSE |
+| **2. Next.js frontend** | Done — all modules in production nav |
+| **3. PWA** | Done — manifest, mobile navigation |
+| **4. Capacitor** | Future — wrap Next.js for store apps if traction exists |
 
-Services, domain, and infrastructure should remain stable across all phases.
+Services, domain, and infrastructure remain stable across all phases.
 
 ---
 
@@ -220,15 +191,13 @@ Services, domain, and infrastructure should remain stable across all phases.
 
 Follow this order to avoid UI coupling:
 
-1. **Domain / logic** — add types in `app/models/` and functions in `app/services/` (or Action Engine). No Streamlit, no React.
+1. **Domain / logic** — add types in `app/models/` and functions in `app/services/` (or Action Engine). No React.
 
 2. **Tests** — exercise the service in `tests/` using fake Supabase helpers.
 
 3. **API** — add FastAPI route with Pydantic models. Handler delegates to service.
 
-4. **UI last**
-   - **Target:** Next.js feature module in `web/` calling the API
-   - **Prototype only:** Streamlit page in `frontend/ui/` calling the service directly until API exists
+4. **UI** — Next.js feature module in `web/` calling the API.
 
 5. **Never** put business logic, OpenAI calls, or Supabase queries in frontend code.
 
@@ -262,8 +231,7 @@ RLS in Supabase enforces access. FastAPI uses the user's JWT so the same policie
 
 | Question | Answer |
 |----------|--------|
-| Production frontend? | **Next.js** + React + Tailwind + shadcn/ui |
-| Prototype frontend? | Streamlit — temporary |
+| Production frontend? | **Next.js** + React + Tailwind |
 | API layer? | **FastAPI** for all clients |
 | Where is the brain? | **Python** — services, agents, Action Engine |
 | Mobile apps? | PWA first, **Capacitor** wrapper later |

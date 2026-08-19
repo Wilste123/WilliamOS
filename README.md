@@ -15,7 +15,6 @@ Personal Chief of Staff — a daily-use app for tasks, assets, inbox capture, an
 | Brain | Python services + PA agent | `app/services/`, `app/agents/` |
 | Data | Supabase (Postgres, Auth, Storage) | `migrations/` |
 | AI | OpenAI tool-calling | `app/agents/pa_agent.py` |
-| Lab UI | Streamlit (dev only) | `frontend/` |
 
 ---
 

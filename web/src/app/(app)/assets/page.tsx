@@ -19,6 +19,7 @@ export default function AssetsPage() {
       <CreateRecordForm
         path="/assets"
         submitLabel="Opprett eiendel"
+        showVisibility
         extraPayload={{ status: "active" }}
         fields={[
           { name: "name", label: "Navn", type: "text", required: true, placeholder: "F.eks. Tun32, Mazda, båt" },

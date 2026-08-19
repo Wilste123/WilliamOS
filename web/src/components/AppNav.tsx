@@ -10,7 +10,6 @@ import {
   isNavActive,
   LIFE_NAV,
   MORE_NAV,
-  OVERVIEW_NAV,
   PRIMARY_NAV,
   SYSTEM_NAV,
   type NavItem,
@@ -57,7 +56,9 @@ function NavSection({
   if (items.length === 0) return null;
   return (
     <div>
-      <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      {title ? (
+        <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      ) : null}
       <div className="space-y-1">
         {items.map((item) => (
           <NavLink
@@ -79,7 +80,6 @@ export function AppNav({ onNavigate }: AppNavProps) {
   return (
     <nav className="space-y-4">
       <NavSection title="Hoved" items={PRIMARY_NAV} pathname={pathname} onNavigate={onNavigate} />
-      <NavSection title="Oversikt" items={OVERVIEW_NAV} pathname={pathname} onNavigate={onNavigate} />
 
       <div>
         <button
@@ -98,7 +98,7 @@ export function AppNav({ onNavigate }: AppNavProps) {
         )}
       </div>
 
-      <p className="px-3 text-xs text-muted">{APP_NAME} — full app</p>
+      <p className="px-3 text-xs text-muted">{APP_NAME}</p>
     </nav>
   );
 }

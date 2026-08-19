@@ -171,13 +171,6 @@ export function logout(): void {
   clearSession();
 }
 
-export async function sendChat(message: string, history: { role: string; content: string }[] = []) {
-  return request<{ answer: string; sources: unknown[] }>("/chat", {
-    method: "POST",
-    body: JSON.stringify({ message, history, use_documents: true }),
-  });
-}
-
 export type ChatStreamEvent =
   | { type: "status"; phase: string }
   | { type: "token"; text: string }
@@ -316,25 +309,6 @@ export async function dismissInboxItem(inboxId: string) {
   });
 }
 
-export async function fetchDashboard() {
-  return request<DashboardSummary>("/dashboard");
-}
-
-export type DashboardSummary = {
-  metrics: {
-    assets: number;
-    open_tasks: number;
-    projects: number;
-    documents: number;
-    open_decisions: number;
-  };
-  priorities: Record<string, unknown>[];
-  upcoming_events: Record<string, unknown>[];
-  active_projects: Record<string, unknown>[];
-  new_documents: Record<string, unknown>[];
-  recent_activity: Record<string, unknown>[];
-};
-
 export async function fetchWeeklyBrief() {
   return request<WeeklyBrief>("/weekly-brief");
 }
@@ -357,10 +331,6 @@ export type PriorityFocusItem = {
   record?: Record<string, unknown>;
   meta?: Record<string, unknown>;
 };
-
-export async function fetchPriorities() {
-  return request<{ items: PriorityFocusItem[]; net_worth_nok: number }>("/priorities");
-}
 
 export async function fetchTimeline() {
   return request<Record<string, unknown>[]>("/timeline");
@@ -569,7 +539,7 @@ export async function exportUserData() {
     "/goals",
     "/documents",
     "/decisions",
-    "/events",
+    "/timeline",
     "/memory",
   ];
   const entries = await Promise.all(

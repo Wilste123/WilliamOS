@@ -7,6 +7,7 @@ import { ArrowLeft, FolderKanban } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/ConfirmDeleteButton";
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { DetailTabs } from "@/components/DetailTabs";
 import { DocumentList } from "@/components/DocumentList";
 import { TaskList } from "@/components/TaskList";
 import {
@@ -118,26 +119,14 @@ export default function ProjectDetailPage() {
         </div>
       </header>
 
-      <div className="flex gap-2 overflow-x-auto">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm ${
-              tab === item.id ? "bg-accent text-white" : "border border-border text-muted hover:text-foreground"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <DetailTabs tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === "tasks" && (
         <section className="space-y-4">
           <CreateRecordForm
             path="/tasks"
             submitLabel="Opprett oppgave i prosjektet"
+            showVisibility
             extraPayload={{ project_id: projectId }}
             fields={[
               { name: "title", label: "Tittel", type: "text", required: true, placeholder: "Hva skal gjøres?" },

@@ -3,9 +3,11 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { createGoal, fetchCollection } from "@/lib/api";
 import { GOAL_MODULES, goalModuleNeedsLink, type GoalModule } from "@/lib/goal-modules";
 import { entityRecordLabel } from "@/lib/project-links";
+import type { Visibility } from "@/lib/visibility";
 
 type GoalCreateSectionProps = {
   onCreated?: () => void;
@@ -76,6 +78,7 @@ export function GoalCreateSection({ onCreated }: GoalCreateSectionProps) {
       <CreateRecordForm
         path="/goals"
         submitLabel="Opprett mål"
+        showVisibility
         fields={[
           { name: "title", label: "Tittel", type: "text", required: true, placeholder: "Hva vil du oppnå?" },
           { name: "next_step", label: "Neste steg", type: "text", placeholder: "Neste handling" },
@@ -116,6 +119,7 @@ function InlineGoalForm({ onSubmit }: { onSubmit: (body: Record<string, unknown>
   const [title, setTitle] = useState("");
   const [nextStep, setNextStep] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [visibility, setVisibility] = useState<Visibility>("household");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -123,7 +127,7 @@ function InlineGoalForm({ onSubmit }: { onSubmit: (body: Record<string, unknown>
     if (!title.trim()) return;
     setSubmitting(true);
     try {
-      const body: Record<string, unknown> = { title: title.trim() };
+      const body: Record<string, unknown> = { title: title.trim(), visibility };
       if (nextStep.trim()) body.next_step = nextStep.trim();
       if (targetDate) body.target_date = targetDate;
       await onSubmit(body);
@@ -156,6 +160,7 @@ function InlineGoalForm({ onSubmit }: { onSubmit: (body: Record<string, unknown>
         onChange={(e) => setTargetDate(e.target.value)}
         className="w-full rounded-xl border border-border bg-transparent px-4 py-3 text-sm"
       />
+      <VisibilitySelect value={visibility} onChange={setVisibility} />
       <button
         type="submit"
         disabled={submitting}

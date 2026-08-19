@@ -22,6 +22,7 @@ export default function ProjectsPage() {
       <CreateRecordForm
         path="/projects"
         submitLabel="Opprett prosjekt"
+        showVisibility
         fields={[
           { name: "name", label: "Navn", type: "text", required: true, placeholder: "Hva jobber du med?" },
           { name: "next_action", label: "Neste handling", type: "text", placeholder: "Neste steg" },

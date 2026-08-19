@@ -91,7 +91,7 @@ export function DocumentUploadForm({ assetId, projectId, onUploaded }: DocumentU
       {success && (
         <div className="space-y-2">
           <p className="text-sm text-emerald-300">Lagret: {success}</p>
-          {uploadResult?.id && (
+          {uploadResult?.id != null && String(uploadResult.id) !== "" && (
             <div className="flex flex-wrap gap-2">
               <Link
                 href={`/chat?document_id=${encodeURIComponent(String(uploadResult.id))}&prompt=${encodeURIComponent(`Analyser dokumentet «${String(uploadResult.filename ?? "dokument")}»`)}&send=1`}

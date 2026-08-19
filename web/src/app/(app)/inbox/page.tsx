@@ -132,10 +132,10 @@ export default function InboxPage() {
           const suggestions = item.suggestions ?? [];
           const isDocument = item.signal_type === "document";
           return (
-            <article key={String(item.id)} className="rounded-2xl border border-border bg-zinc-950/40 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">{String(item.text ?? "Uten tekst")}</p>
+            <article key={String(item.id)} className="min-w-0 rounded-2xl border border-border bg-zinc-950/40 p-4">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-medium">{String(item.text ?? "Uten tekst")}</p>
                   <p className="mt-1 text-xs text-muted capitalize">
                     {isDocument ? `Dokument · ${item.doc_type ?? "fil"}` : `Status: ${item.status ?? "captured"}`}
                   </p>
@@ -156,9 +156,9 @@ export default function InboxPage() {
                   {suggestions.map((suggestion, index) => (
                     <div
                       key={`${item.id}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
+                      className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
                     >
-                      <span className="text-sm">{suggestionLabel(suggestion)}</span>
+                      <span className="min-w-0 flex-1 break-words text-sm">{suggestionLabel(suggestion)}</span>
                       <button
                         type="button"
                         disabled={applyingKey === `${item.id}:${index}`}

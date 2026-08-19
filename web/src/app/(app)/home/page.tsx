@@ -3,34 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { StatCard } from "@/components/StatCard";
 import { fetchHome, fetchWeeklyBrief, type WeeklyBrief } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { getTimeGreeting, type HomeSummary } from "@/lib/home";
 import { priorityItemActionLabel, priorityItemHref } from "@/lib/priority-links";
-
-function StatCard({
-  label,
-  value,
-  hint,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-  href?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-zinc-950/50 p-4">
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      {hint && href && (
-        <Link href={href} className="mt-2 inline-block text-sm text-accent">
-          {hint}
-        </Link>
-      )}
-    </div>
-  );
-}
 
 function HomeSkeleton() {
   return (
@@ -145,8 +122,8 @@ export default function HomePage() {
                   className="block rounded-xl bg-zinc-900/60 px-3 py-2 text-sm transition hover:bg-zinc-900"
                 >
                   <span className="text-xs uppercase text-muted">{item.source_type}</span>
-                  <p>{item.title}</p>
-                  {item.reason ? <p className="text-xs text-muted">{item.reason}</p> : null}
+                  <p className="break-words">{item.title}</p>
+                  {item.reason ? <p className="break-words text-xs text-muted">{item.reason}</p> : null}
                 </Link>
               </li>
             ))}

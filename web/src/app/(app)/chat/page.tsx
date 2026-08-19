@@ -287,7 +287,7 @@ function ChatPageInner() {
         {messages.map((message, index) => (
           <div key={`${message.role}-${index}`} className={`max-w-[90%] ${message.role === "user" ? "ml-auto" : ""}`}>
             <div
-              className={`rounded-2xl px-4 py-3 text-sm ${
+              className={`break-words whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
                 message.role === "user" ? "bg-accent text-white" : "bg-zinc-900"
               }`}
             >

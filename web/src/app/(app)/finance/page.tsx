@@ -3,17 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { MigrationRequiredNotice } from "@/components/MigrationRequiredNotice";
+import { StatCard } from "@/components/StatCard";
 import { fetchFinanceSummary, type FinanceSummary } from "@/lib/api";
-
-function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-zinc-950/50 p-4">
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
-    </div>
-  );
-}
 
 function formatNok(value: number) {
   return `${Math.round(value).toLocaleString("nb-NO")} NOK`;
@@ -45,10 +37,7 @@ export default function FinancePage() {
       </div>
 
       {error && !summary && (
-        <p className="text-sm text-red-400">
-          Kunne ikke laste økonomi. Kjør migrasjonen{" "}
-          <code className="text-xs">2026-08-17_finance_health_integrations.sql</code> i Supabase.
-        </p>
+        <MigrationRequiredNotice migrationFile="2026-08-17_finance_health_integrations.sql" />
       )}
 
       {summary && (
@@ -77,9 +66,9 @@ export default function FinancePage() {
                 {summary.accounts.map((account) => (
                   <li
                     key={String(account.id)}
-                    className="flex items-center justify-between rounded-xl bg-zinc-900/60 px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-3 rounded-xl bg-zinc-900/60 px-3 py-2 text-sm"
                   >
-                    <span>
+                    <span className="min-w-0 break-words">
                       {String(account.name)}
                       <span className="ml-2 text-xs text-muted">{String(account.account_type)}</span>
                     </span>
@@ -95,6 +84,7 @@ export default function FinancePage() {
       <CreateRecordForm
         path="/finance/accounts"
         submitLabel="Legg til konto"
+        showVisibility
         fields={[
           { name: "name", label: "Navn", type: "text", required: true, placeholder: "BSU, kredittkort, buffer…" },
           { name: "account_type", label: "Type (asset/debt/liquidity)", type: "text", required: true, placeholder: "liquidity" },

@@ -1,6 +1,5 @@
 export type NavIconName =
   | "home"
-  | "dashboard"
   | "chat"
   | "inbox"
   | "tasks"
@@ -10,7 +9,6 @@ export type NavIconName =
   | "decisions"
   | "documents"
   | "timeline"
-  | "events"
   | "finance"
   | "health"
   | "integrations"
@@ -30,9 +28,6 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/inbox", label: "Inbox", icon: "inbox" },
   { href: "/tasks", label: "Oppgaver", icon: "tasks" },
 ];
-
-/** Overview — deprecated; Home is the daily driver */
-export const OVERVIEW_NAV: NavItem[] = [];
 
 /** Life modules — goals, home, documents, history */
 export const LIFE_NAV: NavItem[] = [
@@ -54,19 +49,10 @@ export const SYSTEM_NAV: NavItem[] = [
 ];
 
 /** All items shown under Mer on mobile */
-export const MORE_NAV: NavItem[] = [...OVERVIEW_NAV, ...LIFE_NAV, ...SYSTEM_NAV];
+export const MORE_NAV: NavItem[] = [...LIFE_NAV, ...SYSTEM_NAV];
 
 /** Internal dev routes — not linked in UI */
 export const DEV_ONLY_ROUTES = ["/self-evolve"];
-
-/** @deprecated use PRIMARY_NAV */
-export const MVP_PRIMARY_NAV = PRIMARY_NAV;
-
-/** @deprecated use MORE_NAV */
-export const MVP_SECONDARY_NAV = MORE_NAV;
-
-/** @deprecated empty — all user-facing modules are now in nav */
-export const MVP_HIDDEN_NAV: Omit<NavItem, "icon">[] = [];
 
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === "/home") return pathname === "/home";

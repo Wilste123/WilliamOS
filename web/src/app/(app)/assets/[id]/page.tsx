@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Package } from "lucide-react";
 
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { DetailTabs } from "@/components/DetailTabs";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TaskList } from "@/components/TaskList";
@@ -103,28 +104,14 @@ export default function AssetDetailPage() {
         </div>
       </header>
 
-      <div className="flex gap-2 overflow-x-auto">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm ${
-              tab === item.id
-                ? "bg-accent text-white"
-                : "border border-border text-muted hover:text-foreground"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <DetailTabs tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === "tasks" && (
         <section className="space-y-4">
           <CreateRecordForm
             path="/tasks"
             submitLabel="Opprett oppgave for eiendelen"
+            showVisibility
             extraPayload={{ asset_id: assetId }}
             fields={[
               {

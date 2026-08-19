@@ -17,20 +17,29 @@ create index if not exists idx_goals_linked_id on goals(linked_id);
 
 -- ─────────────────────────────────────────────────────────────
 -- project_links
+-- Core table first; auth columns added via ALTER so re-runs work when
+-- an older/partial project_links table already exists without household_id.
 -- ─────────────────────────────────────────────────────────────
 create table if not exists project_links (
     id           uuid primary key default uuid_generate_v4(),
     project_id   uuid not null references projects(id) on delete cascade,
-    entity_type  text not null
-                     check (entity_type in ('asset', 'goal', 'document', 'finance_account', 'task', 'decision')),
+    entity_type  text not null,
     entity_id    uuid not null,
-    user_id      uuid references auth.users(id) on delete set null,
-    household_id uuid references households(id) on delete set null,
-    visibility   text not null default 'household'
-                     check (visibility in ('private', 'household')),
     created_at   timestamptz not null default now(),
     unique (project_id, entity_type, entity_id)
 );
+
+alter table project_links add column if not exists user_id uuid references auth.users(id) on delete set null;
+alter table project_links add column if not exists household_id uuid references households(id) on delete set null;
+alter table project_links add column if not exists visibility text not null default 'household';
+
+alter table project_links drop constraint if exists project_links_entity_type_check;
+alter table project_links add constraint project_links_entity_type_check
+    check (entity_type in ('asset', 'goal', 'document', 'finance_account', 'task', 'decision'));
+
+alter table project_links drop constraint if exists project_links_visibility_check;
+alter table project_links add constraint project_links_visibility_check
+    check (visibility in ('private', 'household'));
 
 create index if not exists idx_project_links_project_id on project_links(project_id);
 create index if not exists idx_project_links_entity on project_links(entity_type, entity_id);

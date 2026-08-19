@@ -1,6 +1,5 @@
 import {
   Brain,
-  CalendarDays,
   CheckSquare,
   FileText,
   FolderKanban,
@@ -10,7 +9,6 @@ import {
   History,
   Home,
   Inbox,
-  LayoutDashboard,
   MessageCircle,
   Package,
   Plug,
@@ -23,7 +21,6 @@ import type { NavIconName } from "@/lib/navigation";
 
 const ICONS: Record<NavIconName, LucideIcon> = {
   home: Home,
-  dashboard: LayoutDashboard,
   chat: MessageCircle,
   inbox: Inbox,
   tasks: CheckSquare,
@@ -33,7 +30,6 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   decisions: GitBranch,
   documents: FileText,
   timeline: History,
-  events: CalendarDays,
   finance: Wallet,
   health: HeartPulse,
   integrations: Plug,

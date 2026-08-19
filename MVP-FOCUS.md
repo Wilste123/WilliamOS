@@ -18,7 +18,7 @@ Build and test a **small, excellent** daily-use app — not the full WilliamOS p
 
 ---
 
-## Visible in Next.js (`web/`)
+## All modules in Next.js (`web/`)
 
 | Module | Route | Purpose |
 |--------|-------|---------|
@@ -27,22 +27,19 @@ Build and test a **small, excellent** daily-use app — not the full WilliamOS p
 | Inbox | `/inbox` | Capture + apply suggestion cards |
 | Oppgaver | `/tasks` | Create, complete, edit tasks |
 | Eiendeler | `/assets` | Create, edit, detail page with tasks/docs/timeline |
+| Prosjekter | `/projects` | Projects + linked goals/assets |
+| Mål | `/goals` | Goals by module with linked records |
+| Beslutninger | `/decisions` | Decision log |
+| Timeline | `/timeline` | Life events |
+| Dokumenter | `/documents` | Upload + list |
 | Minne | `/memory` | Save facts for PA context |
-| Innstillinger | `/settings` | Assistant name, 7-day usage stats |
+| Innstillinger | `/settings` | Profile, preferences, export, usage stats |
 
 **Brand:** Mini-jarv (PWA icons in `web/public/`)
 
-**Navigation:** Mobile bottom bar: Hjem · Chat · Inbox · Oppgaver · Mer (Eiendeler, Minne, Innstillinger)
+**Navigation:** Mobile bottom bar with full module access via «Mer» menu.
 
----
-
-## Hidden during MVP (lab / dev routes)
-
-Dashboard, Prosjekter, Beslutninger, Hendelser, Dokumenter (list page), Timeline, self-evolve
-
-These routes exist for development. Document upload is available on asset detail and `/documents`.
-
-Use **Streamlit** for fuller forms during development if Next.js gaps block daily use.
+**Legacy redirects:** `/dashboard` → `/home`, `/events` → `/timeline`
 
 ---
 
@@ -56,7 +53,7 @@ Use **Streamlit** for fuller forms during development if Next.js gaps block dail
 - [ ] Asset create + edit + detail updates Hjem net worth  
 - [ ] Document upload works (asset detail or documents page)  
 - [ ] Assistant name saves in settings  
-- [ ] You use it daily for 7 days without Streamlit for core tasks  
+- [ ] You use it daily for 7 days for core tasks  
 
 See [docs/SEVEN-DAY-TEST.md](docs/SEVEN-DAY-TEST.md) for the daily ritual.
 

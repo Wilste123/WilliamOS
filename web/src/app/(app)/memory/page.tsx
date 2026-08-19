@@ -124,7 +124,7 @@ export default function MemoryPage() {
                   {item.created_at ? <span>{formatDate(item.created_at)}</span> : null}
                 </div>
                 {item.key ? <p className="mt-1 text-xs text-muted">{String(item.key)}</p> : null}
-                <p className="mt-2">{String(item.value)}</p>
+                <p className="mt-2 break-words">{String(item.value)}</p>
               </li>
             ))}
           </ul>

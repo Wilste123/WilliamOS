@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -119,13 +118,6 @@ export default function LoginPage() {
           >
             {mode === "login" ? "Registrer deg" : "Logg inn"}
           </button>
-        </p>
-
-        <p className="text-center text-xs text-muted">
-          Streamlit-prototypen kjører fortsatt parallelt.{" "}
-          <Link href="http://localhost:8501" className="underline">
-            Åpne lab
-          </Link>
         </p>
       </div>
     </div>

@@ -10,6 +10,7 @@ import {
   updateProfile,
   type UsageStats,
 } from "@/lib/api";
+import { StatCard } from "@/components/StatCard";
 import { ASSET_TYPE_OPTIONS } from "@/lib/asset-types";
 import { APP_NAME } from "@/lib/navigation";
 import type { UserPreferences } from "@/lib/auth";
@@ -92,15 +93,13 @@ export default function SettingsPage() {
 
       {usage && (
         <section className="rounded-2xl border border-border p-4">
-          <h2 className="font-medium">7-dagers test</h2>
-          <p className="mt-1 text-sm text-muted">
-            Mål: bruk appen daglig i 7 dager uten Streamlit for kjernefunksjoner.
-          </p>
+          <h2 className="font-medium">7-dagers utfordring</h2>
+          <p className="mt-1 text-sm text-muted">Bruk appen daglig i 7 dager for å bygge vanen.</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Stat label="Denne uka" value={String(usage.days_opened_this_week)} />
-            <Stat label="Streak" value={String(usage.streak_days)} />
-            <Stat label="Totalt" value={String(usage.total_opens)} />
-            <Stat label="7-dagers mål" value={usage.seven_day_goal_met ? "✓" : "—"} />
+            <StatCard label="Denne uka" value={String(usage.days_opened_this_week)} />
+            <StatCard label="Streak" value={String(usage.streak_days)} />
+            <StatCard label="Totalt" value={String(usage.total_opens)} />
+            <StatCard label="7-dagers mål" value={usage.seven_day_goal_met ? "✓" : "—"} />
           </div>
         </section>
       )}
@@ -125,7 +124,7 @@ export default function SettingsPage() {
             <input
               value={householdId}
               readOnly
-              className="w-full rounded-xl border border-border bg-zinc-900/40 px-3 py-3 text-xs text-muted"
+              className="w-full break-all rounded-xl border border-border bg-zinc-900/40 px-3 py-3 text-xs text-muted"
             />
           </label>
         </section>
@@ -204,15 +203,6 @@ export default function SettingsPage() {
         {saved && <p className="text-sm text-muted">{saved}</p>}
         {error && <p className="text-sm text-red-400">{error}</p>}
       </form>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-zinc-900/60 p-3">
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
 }

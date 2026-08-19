@@ -148,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="min-h-dvh">
+      <div className="min-h-dvh min-w-0 overflow-x-hidden">
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur px-4 py-3 lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -199,9 +199,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="mx-auto max-w-3xl px-4 py-4 pb-28 lg:pb-4">
+        <main className="mx-auto min-w-0 max-w-3xl px-4 py-4 pb-28 lg:pb-4">
           {bootError && (
-            <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <p className="mb-4 break-words rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
               {bootError}
             </p>
           )}

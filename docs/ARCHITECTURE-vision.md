@@ -52,25 +52,19 @@ Today WilliamOS is in **prototype phase**. This is acknowledged explicitly — i
 
 | Area | Today |
 |------|-------|
-| UI | Streamlit (`frontend/`) used as temporary MVP interface |
-| Business logic | Mostly in `app/services/` and `app/agents/` — correct direction |
-| API | FastAPI exists (`app/api/`) but is **not yet** the sole entry point for all clients |
-| Streamlit access | Calls `app/services` directly, bypassing FastAPI |
-| Auth | Supabase auth integrated; household + visibility model in place |
-| Frontend quality | Desktop-oriented, not production-grade mobile experience |
+| UI | Next.js (`web/`) — sole production client |
+| Business logic | `app/services/` and `app/agents/` — UI-agnostic |
+| API | FastAPI (`app/api/`) — primary entry point for all clients |
+| Auth | Supabase auth; JWT on every route; household + visibility model |
+| Frontend quality | Mobile-first PWA with full module nav |
 
 **What works well today:**
 
-- Service layer is largely UI-agnostic (no Streamlit in services/agents)
+- Service layer is UI-agnostic
 - Action Engine pattern for data mutations
 - Supabase as single storage layer with RLS
 - Tests against service functions
-
-**What is transitional, not target:**
-
-- Streamlit as primary user interface
-- Direct service calls from UI instead of API calls
-- Partial FastAPI surface (chat, tasks, assets, etc. — not complete)
+- Next.js covers all modules (inbox, chat, assets, goals, projects, …)
 
 ---
 
@@ -114,8 +108,7 @@ WilliamOS-afui/
 │   ├── agents/             # AI agents (suggest, never mutate directly)
 │   ├── models/             # Domain + Pydantic API types
 │   └── database/           # Supabase / external I/O
-├── web/                    # Next.js production frontend (target)
-├── frontend/               # Streamlit prototype (temporary — delete later)
+├── web/                    # Next.js production frontend
 ├── migrations/
 └── tests/
 ```
