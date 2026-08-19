@@ -264,18 +264,21 @@ def _calendar_record_from_google(event: dict) -> dict:
     }
 
 
+def _parse_event_datetime(value: object) -> datetime:
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def create_google_calendar_event(integration: dict, record: dict) -> dict:
     access = _ensure_access_token(integration)
     if not access:
         raise RuntimeError("Google-token er utløpt.")
 
-    start = datetime.fromisoformat(str(record["start_at"]).replace("Z", "+00:00"))
+    start = _parse_event_datetime(record["start_at"])
     end_raw = record.get("end_at")
-    end = (
-        datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
-        if end_raw
-        else start + timedelta(hours=1)
-    )
+    end = _parse_event_datetime(end_raw) if end_raw else start + timedelta(hours=1)
     all_day = bool(record.get("all_day"))
 
     payload = {
@@ -296,13 +299,9 @@ def update_google_calendar_event(integration: dict, record: dict) -> dict:
     if not access or not external_id:
         raise RuntimeError("Mangler Google event ID.")
 
-    start = datetime.fromisoformat(str(record["start_at"]).replace("Z", "+00:00"))
+    start = _parse_event_datetime(record["start_at"])
     end_raw = record.get("end_at")
-    end = (
-        datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
-        if end_raw
-        else start + timedelta(hours=1)
-    )
+    end = _parse_event_datetime(end_raw) if end_raw else start + timedelta(hours=1)
     all_day = bool(record.get("all_day"))
     calendar_id = record.get("calendar_id") or "primary"
 

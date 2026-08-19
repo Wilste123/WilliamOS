@@ -68,3 +68,61 @@ def test_sync_google_calendar_upserts(monkeypatch):
     result2 = sync_google_calendar_events(integration, days=7)
     assert result2["updated"] == 1
     assert result2["created"] == 0
+
+
+def test_create_calendar_event_pushes_to_google(monkeypatch):
+    store = {"calendar_events": [], "user_integrations": []}
+    _patch_supabase(monkeypatch, _make_fake_supabase(store))
+    from app.services.calendar_service import create_calendar_event
+
+    integration = {
+        "id": "int-1",
+        "provider": "google",
+        "status": "connected",
+        "user_id": "00000000-0000-4000-8000-000000000001",
+        "access_token": "token",
+        "refresh_token": "refresh",
+        "metadata": {
+            "scopes": "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.readonly"
+        },
+    }
+    store["user_integrations"].append(integration)
+
+    monkeypatch.setattr(
+        "app.services.calendar_service.create_google_calendar_event",
+        lambda _integration, record: {"id": "google-new-1", "organizer": {"email": "primary"}},
+    )
+
+    start = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    record = create_calendar_event(
+        {"title": "App møte", "start_at": start},
+        sync_google=True,
+    )
+    assert record["google_synced"] is True
+    assert record["external_id"] == "google-new-1"
+
+
+def test_create_calendar_event_reports_missing_write_scope(monkeypatch):
+    store = {"calendar_events": [], "user_integrations": []}
+    _patch_supabase(monkeypatch, _make_fake_supabase(store))
+    from app.services.calendar_service import create_calendar_event
+
+    store["user_integrations"].append(
+        {
+            "id": "int-1",
+            "provider": "google",
+            "status": "connected",
+            "user_id": "00000000-0000-4000-8000-000000000001",
+            "access_token": "token",
+            "refresh_token": "refresh",
+            "metadata": {"scopes": "https://www.googleapis.com/auth/calendar.readonly"},
+        }
+    )
+
+    start = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    record = create_calendar_event(
+        {"title": "App møte", "start_at": start},
+        sync_google=True,
+    )
+    assert record["google_synced"] is False
+    assert "skrivetilgang" in str(record.get("google_sync_error", "")).lower()

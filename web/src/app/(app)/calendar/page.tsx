@@ -79,6 +79,7 @@ export default function CalendarPage() {
   const [allDay, setAllDay] = useState(false);
   const [visibility, setVisibility] = useState<Visibility>("household");
   const [syncGoogle, setSyncGoogle] = useState(true);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,6 +145,7 @@ export default function CalendarPage() {
     formEvent.preventDefault();
     if (!title.trim() || !date) return;
     setSaving(true);
+    setSyncMessage(null);
     try {
       const body = {
         title: title.trim(),
@@ -155,10 +157,15 @@ export default function CalendarPage() {
         visibility,
         sync_google: syncGoogle,
       };
-      if (editingId) {
-        await updateCalendarEvent(editingId, body);
-      } else {
-        await createCalendarEvent(body);
+      const saved = editingId
+        ? await updateCalendarEvent(editingId, body)
+        : await createCalendarEvent(body);
+      if (syncGoogle && saved.google_synced === false) {
+        setSyncMessage(
+          String(saved.google_sync_error ?? "Kunne ikke synke til Google Calendar.")
+        );
+      } else if (syncGoogle && saved.google_synced === true) {
+        setSyncMessage("Synket til Google Calendar.");
       }
       resetForm();
       await load();
@@ -193,6 +200,18 @@ export default function CalendarPage() {
           {syncing ? "Synker…" : "Synk Google"}
         </button>
       </div>
+
+      {syncMessage && (
+        <p
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            syncMessage.startsWith("Synket")
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+          }`}
+        >
+          {syncMessage}
+        </p>
+      )}
 
       <section className="rounded-2xl border border-border p-4">
         <div className="mb-4 flex items-center justify-between">

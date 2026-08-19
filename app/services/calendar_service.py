@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from app.services.google_service import (
     create_google_calendar_event,
     delete_google_calendar_event,
     get_connected_google_integration,
+    google_has_calendar_write_scope,
     sync_google_calendar_events,
     update_google_calendar_event,
 )
 from app.services.storage_service import create_record, delete_record, list_records, update_record
+
+logger = logging.getLogger(__name__)
 
 COLLECTION = "calendar_events"
 
@@ -36,12 +40,58 @@ def _parse_dt(value: object | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
-def _serialize_event(record: dict) -> dict:
+def _serialize_event(record: dict, *, google_synced: bool | None = None, google_sync_error: str | None = None) -> dict:
     """Expose start_at for consumers that expect event_date."""
     out = dict(record)
     if out.get("start_at") and not out.get("event_date"):
         out["event_date"] = out["start_at"]
+    if google_synced is not None:
+        out["google_synced"] = google_synced
+    if google_sync_error:
+        out["google_sync_error"] = google_sync_error
     return out
+
+
+def _google_write_scope_error() -> str:
+    return (
+        "Google mangler skrivetilgang til kalender. "
+        "Gå til Integrasjoner og trykk «Oppdater Google-tilgang»."
+    )
+
+
+def _apply_google_metadata(record: dict, google_event: dict) -> dict:
+    updated = update_record(
+        COLLECTION,
+        record["id"],
+        {
+            "source": "google",
+            "external_id": google_event.get("id"),
+            "calendar_id": google_event.get("organizer", {}).get("email") or "primary",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    return updated or record
+
+
+def _push_record_to_google(record: dict, *, update: bool = False) -> tuple[dict, str | None]:
+    """Write or update a record in Google Calendar. Returns (record, error_message)."""
+    integration = get_connected_google_integration()
+    if not integration:
+        return record, "Google er ikke tilkoblet."
+
+    if not google_has_calendar_write_scope(integration):
+        return record, _google_write_scope_error()
+
+    try:
+        if update and record.get("external_id"):
+            google_event = update_google_calendar_event(integration, record)
+        else:
+            google_event = create_google_calendar_event(integration, record)
+        return _apply_google_metadata(record, google_event), None
+    except Exception as exc:
+        message = str(exc)
+        logger.warning("Google calendar write-back failed: %s", message)
+        return record, message
 
 
 def list_calendar_events(
@@ -97,28 +147,22 @@ def create_calendar_event(payload: dict, *, sync_google: bool = True) -> dict:
 
     record = create_record(COLLECTION, body)
 
+    google_synced: bool | None = None
+    google_sync_error: str | None = None
     if sync_google:
         integration = get_connected_google_integration()
         if integration:
-            try:
-                google_event = create_google_calendar_event(integration, record)
-                if google_event:
-                    updated = update_record(
-                        COLLECTION,
-                        record["id"],
-                        {
-                            "source": "google",
-                            "external_id": google_event.get("id"),
-                            "calendar_id": google_event.get("organizer", {}).get("email")
-                            or "primary",
-                            "updated_at": datetime.now(timezone.utc).isoformat(),
-                        },
-                    )
-                    record = updated or record
-            except Exception:
-                pass
+            record, google_sync_error = _push_record_to_google(record)
+            google_synced = google_sync_error is None
+        else:
+            google_synced = False
+            google_sync_error = "Google er ikke tilkoblet."
 
-    return _serialize_event(record)
+    return _serialize_event(
+        record,
+        google_synced=google_synced,
+        google_sync_error=google_sync_error,
+    )
 
 
 def update_calendar_event(event_id: str, updates: dict, *, sync_google: bool = True) -> dict | None:
@@ -132,15 +176,25 @@ def update_calendar_event(event_id: str, updates: dict, *, sync_google: bool = T
     if not record:
         return None
 
-    if sync_google and record.get("external_id"):
+    google_synced: bool | None = None
+    google_sync_error: str | None = None
+    if sync_google:
         integration = get_connected_google_integration()
         if integration:
-            try:
-                update_google_calendar_event(integration, record)
-            except Exception:
-                pass
+            record, google_sync_error = _push_record_to_google(
+                record,
+                update=bool(record.get("external_id")),
+            )
+            google_synced = google_sync_error is None
+        else:
+            google_synced = False
+            google_sync_error = "Google er ikke tilkoblet."
 
-    return _serialize_event(record)
+    return _serialize_event(
+        record,
+        google_synced=google_synced,
+        google_sync_error=google_sync_error,
+    )
 
 
 def delete_calendar_event(event_id: str) -> bool:

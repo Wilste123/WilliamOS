@@ -378,6 +378,8 @@ export type CalendarEvent = Record<string, unknown> & {
   source?: string;
   location?: string;
   description?: string;
+  google_synced?: boolean;
+  google_sync_error?: string;
 };
 
 export async function fetchCalendar(options: { days?: number } = {}) {
