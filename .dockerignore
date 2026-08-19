@@ -1,0 +1,39 @@
+# flyctl launch added from .gitignore
+**/.env
+**/.env.*
+!**/.env.example
+**/*.rtf
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+**/.DS_Store
+**/**/.DS_Store
+**/.Rhistory
+
+**/uploads/*
+!**/uploads/.gitkeep
+**/requests_log_local.txt
+**/.venv
+**/.williamos
+
+**/web/node_modules
+**/web/.next
+
+**/.cursor
+**/docs/secrets*.mf
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+.pytest_cache/**/*
+
+# flyctl launch added from web/.gitignore
+web/**/node_modules
+web/**/.next
+web/**/.env.local
+web/**/.env*.local
+web/**/npm-debug.log*
+web/**/.vercel
+web/**/.env*
+fly.toml

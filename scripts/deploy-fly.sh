@@ -51,6 +51,22 @@ fi
 echo "==> Fly auth"
 fly auth whoami
 
+APP_NAME="$(grep -E '^app\s*=' fly.toml | sed -E "s/^app[[:space:]]*=[[:space:]]*['\"]([^'\"]+)['\"].*/\1/")"
+if [[ -z "$APP_NAME" || "$APP_NAME" == *"="* ]]; then
+  echo "Could not read app name from fly.toml"
+  exit 1
+fi
+if ! fly status -a "$APP_NAME" >/dev/null 2>&1; then
+  echo "==> Creating Fly app $APP_NAME (first time)"
+  if ! fly launch --no-deploy --name "$APP_NAME" --region ams --copy-config --yes; then
+    echo ""
+    echo "Fly app creation failed. Common fix: add a card at"
+    echo "  https://fly.io/dashboard/personal/billing"
+    echo "(free tier — required even for \$0 usage)"
+    exit 1
+  fi
+fi
+
 echo "==> Setting Fly secrets"
 SECRETS=(
   "OPENAI_API_KEY=${OPENAI_API_KEY}"
@@ -67,13 +83,13 @@ if [[ -n "${OPENAI_MODEL:-}" ]]; then
   SECRETS+=("OPENAI_MODEL=${OPENAI_MODEL}")
 fi
 
-fly secrets set "${SECRETS[@]}"
+fly secrets set "${SECRETS[@]}" -a "$APP_NAME"
 
 echo "==> Deploying to Fly"
-fly deploy
+fly deploy -a "$APP_NAME"
 
 echo "==> Health check"
-curl -sf "https://williamos-api.fly.dev/health" && echo ""
+curl -sf "https://${APP_NAME}.fly.dev/health" && echo ""
 
 if [[ -z "$VERCEL_URL" ]]; then
   echo ""
