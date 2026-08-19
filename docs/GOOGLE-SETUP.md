@@ -73,6 +73,7 @@ Go to: https://console.cloud.google.com
    - Application type: **Web application**
    - **Authorized redirect URIs:**
      - Local: `http://localhost:3000/integrations/callback`
+     - Production (Vercel): `https://william-os-zeta.vercel.app/integrations/callback`
      - iPhone via ngrok: `https://YOUR-SUBDOMAIN.ngrok-free.app/integrations/callback`
 5. Copy **Client ID** and **Client secret**
 

@@ -82,6 +82,15 @@ fi
 if [[ -n "${OPENAI_MODEL:-}" ]]; then
   SECRETS+=("OPENAI_MODEL=${OPENAI_MODEL}")
 fi
+if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
+  SECRETS+=("GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}")
+  SECRETS+=("GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}")
+  if [[ -n "$FRONTEND" ]]; then
+    SECRETS+=("GOOGLE_REDIRECT_URI=${FRONTEND%/}/integrations/callback")
+  elif [[ -n "${GOOGLE_REDIRECT_URI:-}" ]]; then
+    SECRETS+=("GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}")
+  fi
+fi
 
 fly secrets set "${SECRETS[@]}" -a "$APP_NAME"
 

@@ -75,6 +75,8 @@ If using Vercel rewrites instead, add to `vercel.json`:
 - Add to Home Screen
 - Verify chat, inbox, asset detail, document upload
 - Confirm usage tracking in Innstillinger
+- **Google:** Add production redirect URI in Google Cloud Console, then run:
+  `./scripts/deploy-fly.sh https://YOUR-APP.vercel.app` (sets `GOOGLE_*` secrets on Fly)
 
 ## 5. Rollback
 
