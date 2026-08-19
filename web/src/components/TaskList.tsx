@@ -4,18 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 
 import { EditSheet } from "@/components/EditSheet";
 import { TaskCard } from "@/components/TaskCard";
-import { completeTask, fetchCollection, updateTask } from "@/lib/api";
+import { completeTask, deleteTask, fetchCollection, updateTask } from "@/lib/api";
 
 type TaskListProps = {
   refreshKey?: number;
   emptyLabel?: string;
+  assetId?: string;
 };
 
 export function TaskList({
   refreshKey = 0,
   emptyLabel = "Ingen oppgaver ennå.",
+  assetId,
 }: TaskListProps) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [assetsById, setAssetsById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -24,9 +27,17 @@ export function TaskList({
   const load = useCallback(() => {
     setLoading(true);
     setError(false);
-    fetchCollection("/tasks")
-      .then((data) => {
-        const openFirst = [...data].sort((a, b) => {
+    Promise.all([fetchCollection("/tasks"), fetchCollection("/assets")])
+      .then(([tasks, assets]) => {
+        const names: Record<string, string> = {};
+        for (const asset of assets) {
+          names[String(asset.id)] = String(asset.name ?? "Eiendel");
+        }
+        setAssetsById(names);
+        const filtered = assetId
+          ? tasks.filter((task) => String(task.asset_id ?? "") === assetId)
+          : tasks;
+        const openFirst = [...filtered].sort((a, b) => {
           const aDone = Boolean(a.completed) || a.status === "completed";
           const bDone = Boolean(b.completed) || b.status === "completed";
           if (aDone !== bDone) return aDone ? 1 : -1;
@@ -39,7 +50,7 @@ export function TaskList({
         setError(true);
         setLoading(false);
       });
-  }, []);
+  }, [assetId]);
 
   useEffect(() => {
     load();
@@ -77,6 +88,13 @@ export function TaskList({
             completing={completingId === String(task.id)}
             onComplete={() => handleComplete(task)}
             onEdit={() => setEditing(task)}
+            onDelete={async () => {
+              await deleteTask(String(task.id));
+              load();
+            }}
+            assetName={
+              task.asset_id ? assetsById[String(task.asset_id)] : undefined
+            }
           />
         ))}
         {!error && items.length === 0 && <p className="text-sm text-muted">{emptyLabel}</p>}

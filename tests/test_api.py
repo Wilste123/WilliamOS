@@ -20,7 +20,7 @@ def test_chat_stream_requires_auth(client):
 
 
 def test_chat_stream_with_auth(authed_client, monkeypatch):
-    def fake_stream(message, *, use_documents=True, history=None):
+    def fake_stream(message, *, use_documents=True, history=None, document_id=None):
         yield {"type": "status", "phase": "thinking"}
         yield {"type": "token", "text": "Hei "}
         yield {"type": "token", "text": "William"}

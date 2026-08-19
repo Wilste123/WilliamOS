@@ -149,3 +149,19 @@ def analyze_uploaded_document(
         "suggested_asset_id": suggested_asset_id,
         "suggestions": suggestions,
     }
+
+
+def analyze_stored_document(document: dict) -> dict:
+    """Re-run intelligence for an existing document record."""
+    from app.services.document_storage import read_document_text
+
+    text_content = document.get("text_content")
+    storage_path = document.get("storage_path")
+    filename = document.get("filename") or "document"
+    if not text_content and storage_path:
+        text_content = read_document_text(str(storage_path), filename)
+    return analyze_uploaded_document(
+        filename,
+        text_content,
+        asset_id=document.get("asset_id"),
+    )

@@ -5,8 +5,10 @@ export default function DecisionsPage() {
     <RecordListPage
       title="Beslutninger"
       description="Beslutninger du følger opp."
-      path="/decisions/"
+      path="/decisions"
       fields={["title", "status", "created_at"]}
+      deletable
+      deleteConfirmMessage="Slette beslutningen?"
     />
   );
 }

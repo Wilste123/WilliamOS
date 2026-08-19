@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AssetCard } from "@/components/AssetCard";
 import { EditSheet } from "@/components/EditSheet";
-import { fetchCollection, updateAsset } from "@/lib/api";
+import { deleteAsset, fetchCollection, updateAsset } from "@/lib/api";
+import { ASSET_TYPE_OPTIONS } from "@/lib/asset-types";
 
 type AssetListProps = {
   refreshKey?: number;
@@ -59,7 +60,15 @@ export function AssetList({
       {error && <p className="text-sm text-red-400">Kunne ikke laste data.</p>}
       <div className="space-y-3">
         {items.map((asset) => (
-          <AssetCard key={String(asset.id)} asset={asset} onEdit={() => setEditing(asset)} />
+          <AssetCard
+            key={String(asset.id)}
+            asset={asset}
+            onEdit={() => setEditing(asset)}
+            onDelete={async () => {
+              await deleteAsset(String(asset.id));
+              load();
+            }}
+          />
         ))}
         {!error && items.length === 0 && <p className="text-sm text-muted">{emptyLabel}</p>}
       </div>
@@ -69,7 +78,7 @@ export function AssetList({
         initialValues={editing ?? {}}
         fields={[
           { name: "name", label: "Navn", type: "text" },
-          { name: "type", label: "Type", type: "text" },
+          { name: "type", label: "Type", type: "select", options: ASSET_TYPE_OPTIONS },
           { name: "estimated_value", label: "Estimert verdi (NOK)", type: "number" },
           { name: "status", label: "Status", type: "select", options: STATUS_OPTIONS },
         ]}

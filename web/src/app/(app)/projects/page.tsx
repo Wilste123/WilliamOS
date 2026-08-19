@@ -5,8 +5,10 @@ export default function ProjectsPage() {
     <RecordListPage
       title="Prosjekter"
       description="Aktive og avsluttede prosjekter."
-      path="/projects/"
+      path="/projects"
       fields={["name", "status", "next_action"]}
+      deletable
+      deleteConfirmMessage="Slette prosjektet?"
     />
   );
 }

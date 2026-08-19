@@ -31,10 +31,8 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/tasks", label: "Oppgaver", icon: "tasks" },
 ];
 
-/** Overview */
-export const OVERVIEW_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-];
+/** Overview — deprecated; Home is the daily driver */
+export const OVERVIEW_NAV: NavItem[] = [];
 
 /** Life modules — goals, home, documents, history */
 export const LIFE_NAV: NavItem[] = [
@@ -45,8 +43,7 @@ export const LIFE_NAV: NavItem[] = [
   { href: "/projects", label: "Prosjekter", icon: "projects" },
   { href: "/decisions", label: "Beslutninger", icon: "decisions" },
   { href: "/documents", label: "Dokumenter", icon: "documents" },
-  { href: "/timeline", label: "Timeline", icon: "timeline" },
-  { href: "/events", label: "Hendelser", icon: "events" },
+  { href: "/timeline", label: "Historikk", icon: "timeline" },
 ];
 
 /** Personalization */

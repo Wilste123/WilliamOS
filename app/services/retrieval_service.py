@@ -102,24 +102,51 @@ def search_documents(
     return results[:top_k]
 
 
-def build_document_context(query: str, *, top_k: int = MAX_RESULTS) -> tuple[str, list[dict]]:
+def build_document_context(
+    query: str,
+    *,
+    top_k: int = MAX_RESULTS,
+    document_id: str | None = None,
+) -> tuple[str, list[dict]]:
     """
     Build a context string and source list for injection into a chat prompt.
 
-    Returns:
-        (context_text, sources)  where sources is the list of matching result dicts.
+    When ``document_id`` is set, that document is always included first.
     """
-    hits = search_documents(query, top_k=top_k)
-    if not hits:
-        return "", []
+    if document_id:
+        documents_by_id = {
+            doc.get("id"): doc for doc in list_records("documents") if doc.get("id")
+        }
+        doc = documents_by_id.get(document_id)
+        if not doc:
+            return "", []
+        from app.services.document_storage import read_document_text
 
-    # Re-fetch full text_content for the matched documents so the model can read
-    # and analyze them – not just see a short metadata snippet.
-    documents_by_id = {
-        doc.get("id"): doc
-        for doc in list_records("documents")
-        if doc.get("id")
-    }
+        text_content = (doc.get("text_content") or "").strip()
+        if not text_content and doc.get("storage_path"):
+            text_content = (read_document_text(str(doc["storage_path"]), doc.get("filename")) or "").strip()
+
+        snippet = text_content[:MAX_SNIPPET_CHARS] if text_content else ""
+        hit = {
+            "id": doc.get("id"),
+            "filename": doc.get("filename"),
+            "source_module": doc.get("source_module"),
+            "snippet": snippet,
+            "score": 1.0,
+            "asset_id": doc.get("asset_id"),
+            "project_id": doc.get("project_id"),
+            "created_at": doc.get("created_at"),
+        }
+        hits = [hit]
+        documents_by_id = {document_id: doc}
+    else:
+        hits = search_documents(query, top_k=top_k)
+        if not hits:
+            return "", []
+
+        documents_by_id = {
+            doc.get("id"): doc for doc in list_records("documents") if doc.get("id")
+        }
 
     lines = [
         "The following documents from your workspace are relevant to the user's question.",
@@ -128,6 +155,10 @@ def build_document_context(query: str, *, top_k: int = MAX_RESULTS) -> tuple[str
     for i, hit in enumerate(hits, 1):
         full_doc = documents_by_id.get(hit["id"], {})
         text_content = (full_doc.get("text_content") or hit.get("snippet") or "").strip()
+        if not text_content and full_doc.get("storage_path"):
+            from app.services.document_storage import read_document_text
+
+            text_content = (read_document_text(str(full_doc["storage_path"]), full_doc.get("filename")) or "").strip()
         if len(text_content) > MAX_CONTENT_CHARS:
             text_content = text_content[:MAX_CONTENT_CHARS] + "\n[... content truncated ...]"
 

@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime, timezone
 
 from app.services.openai_service import chat_completion
-from app.services.storage_service import append_event, create_record, get_record, list_records, update_record
+from app.services.storage_service import append_event, create_record, delete_record, get_record, list_records, update_record
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,52 @@ def create_document(payload: dict) -> dict:
         visibility=document.get("visibility"),
     )
     return document
+
+
+def delete_document_record(document_id: str) -> bool:
+    """Remove a document record and its storage object."""
+    from app.services.document_storage import delete_document as remove_storage_file
+
+    document = get_record("documents", document_id)
+    if not document:
+        return False
+    storage_path = document.get("storage_path")
+    if storage_path:
+        try:
+            remove_storage_file(str(storage_path))
+        except RuntimeError as exc:
+            logger.warning("Storage delete failed for %s: %s", document_id, exc)
+    return delete_record("documents", document_id)
+
+
+def reanalyze_document(document_id: str) -> dict:
+    """Re-run document intelligence and route fresh suggestions to Inbox."""
+    from app.services.document_intelligence import analyze_stored_document
+    from app.services.document_storage import read_document_text
+
+    document = get_record("documents", document_id)
+    if not document:
+        raise ValueError("Dokument ikke funnet")
+
+    storage_path = document.get("storage_path")
+    filename = document.get("filename") or "document"
+    text_content = document.get("text_content")
+    if not text_content and storage_path:
+        text_content = read_document_text(str(storage_path), filename)
+        if text_content:
+            document = update_record(
+                "documents",
+                document_id,
+                {"text_content": text_content},
+            ) or document
+
+    intelligence = analyze_stored_document(document)
+    inbox_signal = capture_document_inbox_signal(document, intelligence)
+    return {
+        "document": document,
+        "intelligence": intelligence,
+        "inbox_signal": inbox_signal,
+    }
 
 
 def create_goal(payload: dict) -> dict:

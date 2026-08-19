@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 
 import {
@@ -87,7 +88,21 @@ export function DocumentUploadForm({ assetId, projectId, onUploaded }: DocumentU
         {uploading ? "Laster opp…" : "Lagre dokument"}
       </button>
       {error && <p className="text-sm text-red-400">{error}</p>}
-      {success && <p className="text-sm text-emerald-300">Lagret: {success}</p>}
+      {success && (
+        <div className="space-y-2">
+          <p className="text-sm text-emerald-300">Lagret: {success}</p>
+          {uploadResult?.id && (
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/chat?document_id=${encodeURIComponent(String(uploadResult.id))}&prompt=${encodeURIComponent(`Analyser dokumentet «${String(uploadResult.filename ?? "dokument")}»`)}&send=1`}
+                className="rounded-lg bg-accent/15 px-3 py-1.5 text-xs text-accent"
+              >
+                Chat om dokumentet
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
       {suggestions.length > 0 && (
         <div className="space-y-2 rounded-xl border border-border/70 bg-zinc-900/40 p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Forslag fra dokumentanalyse</p>

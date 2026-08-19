@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     message: str
     use_documents: bool = True
     history: list[dict] = []
+    document_id: str | None = None
 
 
 class MemoryRequest(BaseModel):
@@ -42,6 +43,7 @@ def chat(request: ChatRequest):
         request.message,
         use_documents=request.use_documents,
         history=request.history or None,
+        document_id=request.document_id,
     )
     return {"answer": answer, "sources": sources}
 
@@ -55,6 +57,7 @@ def chat_stream(request: ChatRequest, user: CurrentUser):
                 request.message,
                 use_documents=request.use_documents,
                 history=request.history or None,
+                document_id=request.document_id,
             ):
                 yield _sse(event)
         except Exception as exc:

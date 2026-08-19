@@ -7,10 +7,11 @@ import { ApiError, createRecord } from "@/lib/api";
 export type CreateField = {
   name: string;
   label: string;
-  type: "text" | "number" | "date";
+  type: "text" | "number" | "date" | "select";
   required?: boolean;
   placeholder?: string;
   step?: string;
+  options?: { value: string; label: string }[];
 };
 
 type CreateRecordFormProps = {
@@ -79,16 +80,32 @@ export function CreateRecordForm({
       {fields.map((field) => (
         <label key={field.name} className="block space-y-1 text-sm">
           <span>{field.label}</span>
-          <input
-            type={field.type}
-            required={field.required}
-            value={values[field.name] ?? ""}
-            onChange={(e) => setField(field.name, e.target.value)}
-            placeholder={field.placeholder}
-            step={field.type === "number" ? field.step ?? "1" : undefined}
-            min={field.type === "number" ? "0" : undefined}
-            className="w-full rounded-xl border border-border bg-transparent px-4 py-3"
-          />
+          {field.type === "select" ? (
+            <select
+              required={field.required}
+              value={values[field.name] ?? ""}
+              onChange={(e) => setField(field.name, e.target.value)}
+              className="w-full rounded-xl border border-border bg-transparent px-4 py-3"
+            >
+              <option value="">{field.placeholder ?? "Velg…"}</option>
+              {(field.options ?? []).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={field.type}
+              required={field.required}
+              value={values[field.name] ?? ""}
+              onChange={(e) => setField(field.name, e.target.value)}
+              placeholder={field.placeholder}
+              step={field.type === "number" ? field.step ?? "1" : undefined}
+              min={field.type === "number" ? "0" : undefined}
+              className="w-full rounded-xl border border-border bg-transparent px-4 py-3"
+            />
+          )}
         </label>
       ))}
       {error && <p className="text-sm text-red-400">{error}</p>}

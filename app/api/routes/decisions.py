@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.api.deps import protected_router
 from app.models.decision import DecisionCreate, DecisionUpdate
 from app.services.action_engine import create_decision, update_decision
-from app.services.storage_service import list_records
+from app.services.storage_service import delete_record, list_records
 
 router = protected_router()
 
@@ -24,3 +24,10 @@ def patch_decision(decision_id: str, updates: DecisionUpdate):
     if decision is None:
         raise HTTPException(status_code=404, detail="Decision not found")
     return decision
+
+
+@router.delete("/{decision_id}")
+def remove_decision(decision_id: str):
+    if not delete_record("decisions", decision_id):
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return {"deleted": True, "id": decision_id}

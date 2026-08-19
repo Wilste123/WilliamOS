@@ -213,6 +213,15 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
     return record
 
 
+def delete_record(collection: str, record_id: str) -> bool:
+    """Delete a single record if the current user may access it."""
+    existing = get_record(collection, record_id)
+    if not existing:
+        return False
+    delete_records(collection, [record_id])
+    return True
+
+
 def delete_records(collection: str, record_ids: list[str] | None = None) -> int:
     """Delete records visible to the current user."""
     context = _require_auth_context()

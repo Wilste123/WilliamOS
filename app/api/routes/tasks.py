@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.api.deps import protected_router
 from app.models.task import TaskCreate, TaskUpdate
 from app.services.action_engine import create_task as create_task_record, update_task
-from app.services.storage_service import list_records
+from app.services.storage_service import delete_record, list_records
 
 router = protected_router()
 
@@ -24,3 +24,10 @@ def patch_task(task_id: str, updates: TaskUpdate):
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@router.delete("/{task_id}")
+def remove_task(task_id: str):
+    if not delete_record("tasks", task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"deleted": True, "id": task_id}

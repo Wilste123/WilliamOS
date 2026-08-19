@@ -109,6 +109,28 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T;
 }
 
+async function fetchAuthedBlob(path: string): Promise<Blob> {
+  const session = getSession();
+  if (!session) {
+    throw new ApiError("Not authenticated", 401);
+  }
+
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      "X-Refresh-Token": session.refresh_token,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
+  }
+
+  syncSessionFromResponse(response);
+  return response.blob();
+}
+
 export async function login(email: string, password: string): Promise<AuthSession> {
   const session = await request<AuthSession>("/auth/login", {
     auth: false,
@@ -175,7 +197,8 @@ export type ChatAction = {
 export async function streamChat(
   message: string,
   history: { role: string; content: string }[],
-  onEvent: (event: ChatStreamEvent) => void
+  onEvent: (event: ChatStreamEvent) => void,
+  options: { documentId?: string } = {}
 ): Promise<void> {
   const session = getSession();
   if (!session) {
@@ -191,7 +214,12 @@ export async function streamChat(
         "X-Refresh-Token": session.refresh_token,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message, history, use_documents: true }),
+      body: JSON.stringify({
+        message,
+        history,
+        use_documents: true,
+        document_id: options.documentId ?? null,
+      }),
     });
   } catch {
     throw new ApiError(
@@ -254,6 +282,10 @@ export async function patchRecord(path: string, body: Record<string, unknown>) {
     method: "PATCH",
     body: JSON.stringify(body),
   });
+}
+
+export async function deleteRecord(path: string) {
+  return request<{ deleted: boolean; id: string }>(path, { method: "DELETE" });
 }
 
 export async function completeTask(taskId: string) {
@@ -332,6 +364,26 @@ export async function fetchPriorities() {
 
 export async function fetchTimeline() {
   return request<Record<string, unknown>[]>("/timeline");
+}
+
+export async function createEvent(body: Record<string, unknown>) {
+  return createRecord("/events", body);
+}
+
+export async function deleteEvent(eventId: string) {
+  return deleteRecord(`/events/${eventId}`);
+}
+
+export async function deleteTask(taskId: string) {
+  return deleteRecord(`/tasks/${taskId}`);
+}
+
+export async function deleteAsset(assetId: string) {
+  return deleteRecord(`/assets/${assetId}`);
+}
+
+export async function deleteDocument(documentId: string) {
+  return deleteRecord(`/documents/${documentId}`);
 }
 
 export async function fetchMemory() {
@@ -424,6 +476,26 @@ export async function applyDocumentSuggestion(
   return request<{ applied: boolean }>(`/documents/${documentId}/apply-suggestion`, {
     method: "POST",
     body: JSON.stringify({ suggestion_id: suggestionId, payload }),
+  });
+}
+
+export async function fetchDocumentPreviewBlob(documentId: string) {
+  return fetchAuthedBlob(`/documents/${documentId}/preview`);
+}
+
+export async function downloadDocumentFile(documentId: string, filename: string) {
+  const blob = await fetchAuthedBlob(`/documents/${documentId}/download`);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function analyzeDocument(documentId: string) {
+  return request<DocumentUploadResult>(`/documents/${documentId}/analyze`, {
+    method: "POST",
   });
 }
 

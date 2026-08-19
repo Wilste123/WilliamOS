@@ -498,6 +498,7 @@ def _build_agent_messages(
     *,
     use_documents: bool = True,
     history: list[dict] | None = None,
+    document_id: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
     from app.services.auth_context import get_current_context
 
@@ -516,7 +517,7 @@ def _build_agent_messages(
 
     sources: list[dict] = []
     if use_documents:
-        doc_context, sources = build_document_context(message)
+        doc_context, sources = build_document_context(message, document_id=document_id)
         if doc_context:
             messages.append({"role": "system", "content": doc_context})
 
@@ -532,6 +533,7 @@ def ask_agent(
     *,
     use_documents: bool = True,
     history: list[dict] | None = None,
+    document_id: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Return (answer, sources).
 
@@ -547,7 +549,7 @@ def ask_agent(
 
     log_request(message)
     messages, sources = _build_agent_messages(
-        message, use_documents=use_documents, history=history
+        message, use_documents=use_documents, history=history, document_id=document_id
     )
     answer = chat_completion_with_tools(messages, WILLIAMOS_TOOLS, _execute_tool)
     return answer, sources
@@ -558,6 +560,7 @@ def ask_agent_stream(
     *,
     use_documents: bool = True,
     history: list[dict] | None = None,
+    document_id: str | None = None,
 ):
     """Yield SSE-ready dicts: status, token, done, or error."""
     action_result = handle_actions(message)
@@ -572,7 +575,7 @@ def ask_agent_stream(
 
     log_request(message)
     messages, sources = _build_agent_messages(
-        message, use_documents=use_documents, history=history
+        message, use_documents=use_documents, history=history, document_id=document_id
     )
     completed_actions: list[dict] = []
     assistant_text = ""

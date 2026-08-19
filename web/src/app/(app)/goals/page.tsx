@@ -16,6 +16,8 @@ export default function GoalsPage() {
       fields={["title", "status", "next_step", "progress"]}
       emptyLabel="Ingen mål ennå."
       refreshKey={refreshKey}
+      deletable
+      deleteConfirmMessage="Slette målet?"
     >
       <CreateRecordForm
         path="/goals"

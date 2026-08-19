@@ -2,7 +2,8 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
-import { fetchCollection } from "@/lib/api";
+import { ConfirmDeleteButton } from "@/components/ConfirmDeleteButton";
+import { deleteRecord, fetchCollection } from "@/lib/api";
 
 type RecordListPageProps = {
   title: string;
@@ -11,6 +12,8 @@ type RecordListPageProps = {
   fields: string[];
   emptyLabel?: string;
   refreshKey?: number;
+  deletable?: boolean;
+  deleteConfirmMessage?: string;
   children?: ReactNode;
 };
 
@@ -28,6 +31,8 @@ export function RecordListPage({
   fields,
   emptyLabel = "Ingen poster ennå.",
   refreshKey = 0,
+  deletable = false,
+  deleteConfirmMessage = "Slette posten?",
   children,
 }: RecordListPageProps) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
@@ -68,8 +73,11 @@ export function RecordListPage({
       {(!loading || items.length > 0) && (
         <div className="space-y-3">
           {items.map((item) => (
-            <article key={String(item.id)} className="rounded-2xl border border-border p-4">
-              <div className="space-y-1">
+            <article
+              key={String(item.id)}
+              className="flex items-start justify-between gap-3 rounded-2xl border border-border p-4"
+            >
+              <div className="min-w-0 space-y-1">
                 {fields.map((field) => (
                   <p key={field} className="text-sm">
                     <span className="text-muted capitalize">{field.replace(/_/g, " ")}: </span>
@@ -77,6 +85,16 @@ export function RecordListPage({
                   </p>
                 ))}
               </div>
+              {deletable && (
+                <ConfirmDeleteButton
+                  confirmMessage={deleteConfirmMessage}
+                  onConfirm={async () => {
+                    const base = path.replace(/\/$/, "");
+                    await deleteRecord(`${base}/${item.id}`);
+                    load();
+                  }}
+                />
+              )}
             </article>
           ))}
           {!error && items.length === 0 && <p className="text-sm text-muted">{emptyLabel}</p>}

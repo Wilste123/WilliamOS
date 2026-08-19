@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { Package, Pencil } from "lucide-react";
 
+import { ConfirmDeleteButton } from "@/components/ConfirmDeleteButton";
+import { assetTypeLabel } from "@/lib/asset-types";
 import { formatNok, statusLabel } from "@/lib/format";
 
 type AssetCardProps = {
   asset: Record<string, unknown>;
   onEdit: () => void;
+  onDelete?: () => Promise<void>;
 };
 
-export function AssetCard({ asset, onEdit }: AssetCardProps) {
+export function AssetCard({ asset, onEdit, onDelete }: AssetCardProps) {
   const name = String(asset.name ?? "Uten navn");
-  const assetType = asset.type ? String(asset.type) : null;
+  const assetType = asset.type ? assetTypeLabel(asset.type) : null;
   const value = formatNok(asset.estimated_value);
   const assetId = String(asset.id ?? "");
 
@@ -43,14 +46,22 @@ export function AssetCard({ asset, onEdit }: AssetCardProps) {
             </div>
           </div>
         </Link>
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label="Rediger eiendel"
-          className="rounded-lg border border-border p-2 text-muted hover:text-foreground"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {onDelete && (
+            <ConfirmDeleteButton
+              confirmMessage="Slette eiendelen?"
+              onConfirm={onDelete}
+            />
+          )}
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label="Rediger eiendel"
+            className="rounded-lg border border-border p-2 text-muted hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </article>
   );

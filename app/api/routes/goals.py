@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from app.api.deps import protected_router
 from app.models.goal import GoalCreate, GoalUpdate
 from app.services.action_engine import create_goal as create_goal_record, update_goal
-from app.services.storage_service import list_records
+from app.services.storage_service import delete_record, list_records
 
 router = protected_router()
 
@@ -27,3 +27,10 @@ def patch_goal(goal_id: str, updates: GoalUpdate):
     if goal is None:
         raise HTTPException(status_code=404, detail="Goal not found")
     return goal
+
+
+@router.delete("/{goal_id}")
+def remove_goal(goal_id: str):
+    if not delete_record("goals", goal_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return {"deleted": True, "id": goal_id}

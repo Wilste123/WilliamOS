@@ -107,6 +107,7 @@ function ChatPageInner() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
   const sendMessageRef = useRef<(userMessage: string) => Promise<void>>(async () => {});
+  const documentContextRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchChatHistory()
@@ -180,8 +181,10 @@ function ChatPageInner() {
               },
             ]);
           }
-        }
+        },
+        { documentId: documentContextRef.current ?? undefined }
       );
+      documentContextRef.current = null;
       if (!sawToken && !assistant) {
         setMessages([
           ...nextMessages,
@@ -212,9 +215,13 @@ function ChatPageInner() {
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
+    const documentId = searchParams.get("document_id");
     const shouldSend = searchParams.get("send") === "1";
     if (!prompt || bootstrapped.current) return;
     bootstrapped.current = true;
+    if (documentId) {
+      documentContextRef.current = documentId;
+    }
     if (shouldSend) {
       router.replace("/chat");
       void sendMessageRef.current(prompt);

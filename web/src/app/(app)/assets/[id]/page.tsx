@@ -5,14 +5,19 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Package } from "lucide-react";
 
+import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { TaskList } from "@/components/TaskList";
 import { fetchAssetDetail, type AssetDetail } from "@/lib/api";
+import { assetTypeLabel } from "@/lib/asset-types";
 import { formatDate, formatNok, statusLabel } from "@/lib/format";
 
-type TabId = "tasks" | "documents" | "timeline";
+type TabId = "tasks" | "projects" | "documents" | "timeline";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "tasks", label: "Oppgaver" },
+  { id: "projects", label: "Prosjekter" },
   { id: "documents", label: "Dokumenter" },
   { id: "timeline", label: "Historikk" },
 ];
@@ -61,7 +66,7 @@ export default function AssetDetailPage() {
     );
   }
 
-  const { asset, open_tasks, documents, events } = detail;
+  const { asset, projects, events } = detail;
   const name = String(asset.name ?? "Uten navn");
 
   return (
@@ -81,7 +86,7 @@ export default function AssetDetailPage() {
             <div className="mt-2 flex flex-wrap gap-2">
               {asset.type != null && asset.type !== "" && (
                 <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs text-muted">
-                  {String(asset.type)}
+                  {assetTypeLabel(asset.type)}
                 </span>
               )}
               <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs text-muted">
@@ -116,18 +121,45 @@ export default function AssetDetailPage() {
       </div>
 
       {tab === "tasks" && (
+        <section className="space-y-4">
+          <CreateRecordForm
+            path="/tasks"
+            submitLabel="Opprett oppgave for eiendelen"
+            extraPayload={{ asset_id: assetId }}
+            fields={[
+              {
+                name: "title",
+                label: "Tittel",
+                type: "text",
+                required: true,
+                placeholder: "Hva skal gjøres?",
+              },
+              { name: "due_date", label: "Frist", type: "date" },
+            ]}
+            onCreated={() => setRefreshKey((key) => key + 1)}
+          />
+          <TaskList
+            assetId={assetId}
+            refreshKey={refreshKey}
+            emptyLabel="Ingen oppgaver knyttet til denne eiendelen ennå."
+          />
+        </section>
+      )}
+
+      {tab === "projects" && (
         <section className="space-y-3">
-          {open_tasks.length === 0 ? (
-            <p className="text-sm text-muted">Ingen åpne oppgaver knyttet til denne eiendelen.</p>
+          {projects.length === 0 ? (
+            <p className="text-sm text-muted">Ingen prosjekter knyttet til denne eiendelen.</p>
           ) : (
-            open_tasks.map((task) => (
+            projects.map((project) => (
               <article
-                key={String(task.id)}
+                key={String(project.id)}
                 className="rounded-xl border border-border bg-zinc-950/30 px-4 py-3"
               >
-                <p className="font-medium">{String(task.title ?? "Oppgave")}</p>
+                <p className="font-medium">{String(project.name ?? "Prosjekt")}</p>
                 <p className="mt-1 text-xs text-muted">
-                  {task.due_date ? `Frist: ${formatDate(task.due_date)}` : "Ingen frist"}
+                  {statusLabel(project.status)}
+                  {project.next_action ? ` · ${String(project.next_action)}` : ""}
                 </p>
               </article>
             ))
@@ -141,19 +173,11 @@ export default function AssetDetailPage() {
             assetId={assetId}
             onUploaded={() => setRefreshKey((key) => key + 1)}
           />
-          {documents.length === 0 ? (
-            <p className="text-sm text-muted">Ingen dokumenter ennå.</p>
-          ) : (
-            documents.map((doc) => (
-              <article
-                key={String(doc.id)}
-                className="rounded-xl border border-border bg-zinc-950/30 px-4 py-3"
-              >
-                <p className="font-medium">{String(doc.filename ?? "Dokument")}</p>
-                <p className="mt-1 text-xs text-muted">{formatDate(doc.created_at)}</p>
-              </article>
-            ))
-          )}
+          <DocumentList
+            assetId={assetId}
+            refreshKey={refreshKey}
+            emptyLabel="Ingen dokumenter ennå."
+          />
         </section>
       )}
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { AssetList } from "@/components/AssetList";
 import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { ASSET_TYPE_OPTIONS } from "@/lib/asset-types";
 
 export default function AssetsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -21,6 +22,13 @@ export default function AssetsPage() {
         extraPayload={{ status: "active" }}
         fields={[
           { name: "name", label: "Navn", type: "text", required: true, placeholder: "F.eks. Tun32, Mazda, båt" },
+          {
+            name: "type",
+            label: "Type",
+            type: "select",
+            required: true,
+            options: ASSET_TYPE_OPTIONS,
+          },
           {
             name: "estimated_value",
             label: "Estimert verdi (NOK)",

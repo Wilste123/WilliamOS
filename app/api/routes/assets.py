@@ -7,7 +7,7 @@ from app.services.action_engine import (
     get_asset_detail,
     update_asset,
 )
-from app.services.storage_service import list_records
+from app.services.storage_service import delete_record, list_records
 
 router = protected_router()
 
@@ -36,3 +36,10 @@ def patch_asset(asset_id: str, updates: AssetUpdate):
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
+
+
+@router.delete("/{asset_id}")
+def remove_asset(asset_id: str):
+    if not delete_record("assets", asset_id):
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return {"deleted": True, "id": asset_id}
