@@ -64,7 +64,10 @@ def build_health_summary() -> dict:
             goal
             for goal in lr("goals")
             if goal.get("status") in {"active", "open", "in_progress"}
-            and "kg" in (goal.get("title") or "").lower()
+            and (
+                goal.get("module") == "health"
+                or "kg" in (goal.get("title") or "").lower()
+            )
         ]
     except Exception:
         pass

@@ -171,10 +171,13 @@ def create_goal(payload: dict) -> dict:
 def update_goal(goal_id: str, updates: dict) -> dict | None:
     goal = update_record("goals", goal_id, updates)
     if goal:
+        notes = goal.get("next_step")
+        if goal.get("status") == "completed":
+            notes = f"Status: completed. {notes or ''}".strip()
         append_event(
             title=f"Mål oppdatert: {goal['title']}",
             event_type="goal_updated",
-            notes=goal.get("next_step"),
+            notes=notes,
             visibility=goal.get("visibility"),
         )
     return goal
@@ -838,6 +841,175 @@ def get_asset_detail(asset_id: str) -> dict | None:
     }
 
 
+def _entity_label(entity_type: str, entity_id: str) -> str:
+    from app.constants.project_links import ENTITY_COLLECTIONS
+
+    collection = ENTITY_COLLECTIONS.get(entity_type)
+    if not collection:
+        return entity_id
+    record = get_record(collection, entity_id)
+    if not record:
+        return entity_id
+    for field in ("name", "title", "filename"):
+        if record.get(field):
+            return str(record[field])
+    return entity_id
+
+
+def _goal_module_reason(goal: dict) -> str:
+    from app.constants.goal_modules import GOAL_MODULE_LABELS, MODULE_ENTITY_COLLECTIONS
+
+    module = goal.get("module")
+    linked_id = goal.get("linked_id")
+    if not module or module == "general":
+        return "Aktivt mål"
+    label = GOAL_MODULE_LABELS.get(module, module)
+    if module == "health":
+        return f"Helsemål"
+    collection = MODULE_ENTITY_COLLECTIONS.get(module)
+    if collection and linked_id:
+        linked = get_record(collection, linked_id)
+        if linked:
+            name = linked.get("name") or linked.get("title") or linked_id
+            return f"{label}: {name}"
+    return f"{label}-mål"
+
+
+def get_project_detail(project_id: str) -> dict | None:
+    """Return a project and related records via FKs and project_links."""
+    from app.constants.project_links import ENTITY_COLLECTIONS
+
+    project = get_record("projects", project_id)
+    if not project:
+        return None
+
+    links = [link for link in list_records("project_links") if link.get("project_id") == project_id]
+    linked_by_type: dict[str, set[str]] = {key: set() for key in ENTITY_COLLECTIONS}
+    for link in links:
+        entity_type = link.get("entity_type")
+        entity_id = link.get("entity_id")
+        if entity_type in linked_by_type and entity_id:
+            linked_by_type[entity_type].add(str(entity_id))
+
+    def _matches_fk_or_link(record: dict, fk_field: str, link_type: str) -> bool:
+        record_id = str(record.get("id", ""))
+        if record.get(fk_field) == project_id:
+            return True
+        return record_id in linked_by_type.get(link_type, set())
+
+    tasks = [t for t in list_records("tasks") if _matches_fk_or_link(t, "project_id", "task")]
+    documents = [d for d in list_records("documents") if _matches_fk_or_link(d, "project_id", "document")]
+    decisions = [d for d in list_records("decisions") if _matches_fk_or_link(d, "project_id", "decision")]
+    goals = [g for g in list_records("goals") if str(g.get("id", "")) in linked_by_type.get("goal", set())]
+
+    finance_accounts: list[dict] = []
+    try:
+        finance_accounts = [
+            account
+            for account in list_records("finance_accounts")
+            if str(account.get("id", "")) in linked_by_type.get("finance_account", set())
+        ]
+    except Exception:
+        pass
+
+    assets = [
+        asset
+        for asset in list_records("assets")
+        if str(asset.get("id", "")) in linked_by_type.get("asset", set())
+    ]
+    asset_id = project.get("asset_id")
+    if asset_id:
+        primary_asset = get_record("assets", str(asset_id))
+        if primary_asset and not any(a.get("id") == primary_asset.get("id") for a in assets):
+            assets.insert(0, primary_asset)
+
+    events = [event for event in list_records("events") if event.get("project_id") == project_id]
+    resolved_links = [
+        {**link, "label": _entity_label(str(link.get("entity_type", "")), str(link.get("entity_id", "")))}
+        for link in links
+    ]
+
+    return {
+        "project": project,
+        "links": resolved_links,
+        "tasks": tasks,
+        "open_tasks": [task for task in tasks if not task.get("completed")],
+        "documents": documents,
+        "goals": goals,
+        "finance_accounts": finance_accounts,
+        "assets": assets,
+        "decisions": decisions,
+        "events": sorted(
+            events,
+            key=lambda event: event.get("event_date") or event.get("created_at", ""),
+            reverse=True,
+        ),
+    }
+
+
+def link_to_project(project_id: str, entity_type: str, entity_id: str) -> dict:
+    from app.constants.project_links import ENTITY_COLLECTIONS
+
+    project = get_record("projects", project_id)
+    if not project:
+        raise ValueError("Prosjekt ikke funnet")
+
+    collection = ENTITY_COLLECTIONS.get(entity_type)
+    if not collection:
+        raise ValueError(f"Ukjent entity_type: {entity_type}")
+
+    entity = get_record(collection, entity_id)
+    if not entity:
+        raise ValueError("Entitet ikke funnet")
+
+    existing = [
+        link
+        for link in list_records("project_links")
+        if link.get("project_id") == project_id
+        and link.get("entity_type") == entity_type
+        and str(link.get("entity_id")) == str(entity_id)
+    ]
+    if existing:
+        return existing[0]
+
+    return create_record(
+        "project_links",
+        {
+            "project_id": project_id,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "visibility": project.get("visibility", "household"),
+            "household_id": project.get("household_id"),
+            "user_id": project.get("user_id"),
+        },
+    )
+
+
+def unlink_from_project(project_id: str, link_id: str) -> bool:
+    link = get_record("project_links", link_id)
+    if not link or str(link.get("project_id")) != str(project_id):
+        return False
+    return delete_record("project_links", link_id)
+
+
+def get_goal_detail(goal_id: str) -> dict | None:
+    goal = get_record("goals", goal_id)
+    if not goal:
+        return None
+
+    linked_record = None
+    module = goal.get("module")
+    linked_id = goal.get("linked_id")
+    if module and linked_id:
+        from app.constants.goal_modules import MODULE_ENTITY_COLLECTIONS
+
+        collection = MODULE_ENTITY_COLLECTIONS.get(module)
+        if collection:
+            linked_record = get_record(collection, str(linked_id))
+
+    return {"goal": goal, "linked_record": linked_record}
+
+
 def build_weekly_brief() -> dict:
     """Build a structured weekly brief — answers 'Hva bør jeg gjøre denne uka?'"""
     engine = build_priority_engine()
@@ -1085,10 +1257,10 @@ def build_priority_engine(limit: int = 5) -> dict:
         title = f"{goal['title']}: {next_step}" if next_step else goal["title"]
         target = _parse_date_only(goal.get("target_date"))
         score = 55
-        reason = "Aktivt mål"
+        reason = _goal_module_reason(goal)
         if target and target <= date.fromordinal(today.toordinal() + 14):
             score = 65
-            reason = "Mål med nær frist"
+            reason = f"{reason} · nær frist"
         items.append(
             _priority_item(
                 source_type="goal",

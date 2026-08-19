@@ -2,7 +2,7 @@ from fastapi import HTTPException
 
 from app.api.deps import protected_router
 from app.models.goal import GoalCreate, GoalUpdate
-from app.services.action_engine import create_goal as create_goal_record, update_goal
+from app.services.action_engine import create_goal as create_goal_record, get_goal_detail, update_goal
 from app.services.storage_service import delete_record, list_records
 
 router = protected_router()
@@ -11,6 +11,14 @@ router = protected_router()
 @router.get("")
 def list_goals():
     return list_records("goals")
+
+
+@router.get("/{goal_id}")
+def read_goal(goal_id: str):
+    detail = get_goal_detail(goal_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return detail
 
 
 @router.post("")

@@ -10,12 +10,14 @@ type TaskListProps = {
   refreshKey?: number;
   emptyLabel?: string;
   assetId?: string;
+  projectId?: string;
 };
 
 export function TaskList({
   refreshKey = 0,
   emptyLabel = "Ingen oppgaver ennå.",
   assetId,
+  projectId,
 }: TaskListProps) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [assetsById, setAssetsById] = useState<Record<string, string>>({});
@@ -34,9 +36,11 @@ export function TaskList({
           names[String(asset.id)] = String(asset.name ?? "Eiendel");
         }
         setAssetsById(names);
-        const filtered = assetId
-          ? tasks.filter((task) => String(task.asset_id ?? "") === assetId)
-          : tasks;
+        const filtered = tasks.filter((task) => {
+          if (assetId && String(task.asset_id ?? "") !== assetId) return false;
+          if (projectId && String(task.project_id ?? "") !== projectId) return false;
+          return true;
+        });
         const openFirst = [...filtered].sort((a, b) => {
           const aDone = Boolean(a.completed) || a.status === "completed";
           const bDone = Boolean(b.completed) || b.status === "completed";
@@ -50,7 +54,7 @@ export function TaskList({
         setError(true);
         setLoading(false);
       });
-  }, [assetId]);
+  }, [assetId, projectId]);
 
   useEffect(() => {
     load();

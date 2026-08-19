@@ -4,8 +4,15 @@ export type AuthSession = {
   household_id: string;
   display_name: string | null;
   assistant_name: string | null;
+  preferences?: UserPreferences | null;
   access_token: string;
   refresh_token: string;
+};
+
+export type UserPreferences = {
+  language: string;
+  default_asset_type: string;
+  inbox_automation: boolean;
 };
 
 export const SESSION_STORAGE_KEY = "williamos_session";

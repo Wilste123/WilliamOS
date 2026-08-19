@@ -152,16 +152,17 @@ export default function AssetDetailPage() {
             <p className="text-sm text-muted">Ingen prosjekter knyttet til denne eiendelen.</p>
           ) : (
             projects.map((project) => (
-              <article
+              <Link
                 key={String(project.id)}
-                className="rounded-xl border border-border bg-zinc-950/30 px-4 py-3"
+                href={`/projects/${String(project.id)}`}
+                className="block rounded-xl border border-border bg-zinc-950/30 px-4 py-3"
               >
                 <p className="font-medium">{String(project.name ?? "Prosjekt")}</p>
                 <p className="mt-1 text-xs text-muted">
                   {statusLabel(project.status)}
                   {project.next_action ? ` · ${String(project.next_action)}` : ""}
                 </p>
-              </article>
+              </Link>
             ))
           )}
         </section>

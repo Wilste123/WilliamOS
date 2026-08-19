@@ -267,4 +267,11 @@ def append_event(
     }
     if visibility:
         payload["visibility"] = visibility
-    return create_record("events", payload)
+    event = create_record("events", payload)
+    try:
+        from app.services.memory_service import append_memory_from_event
+
+        append_memory_from_event(event_type, title, notes)
+    except Exception:
+        pass
+    return event

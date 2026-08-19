@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { CreateRecordForm } from "@/components/CreateRecordForm";
+import { GoalCreateSection } from "@/components/GoalCreateSection";
 import { RecordListPage } from "@/components/RecordListPage";
 
 export default function GoalsPage() {
@@ -11,24 +11,16 @@ export default function GoalsPage() {
   return (
     <RecordListPage
       title="Mål"
-      description="Aktive mål som mater inn i Priority Engine."
+      description="Aktive mål som mater inn i Priority Engine — knytt til helse, økonomi eller eiendeler."
       path="/goals"
-      fields={["title", "status", "next_step", "progress"]}
+      fields={["title", "status", "module", "next_step", "progress"]}
       emptyLabel="Ingen mål ennå."
       refreshKey={refreshKey}
       deletable
       deleteConfirmMessage="Slette målet?"
+      itemHref={(item) => (item.id ? `/goals/${String(item.id)}` : undefined)}
     >
-      <CreateRecordForm
-        path="/goals"
-        submitLabel="Opprett mål"
-        fields={[
-          { name: "title", label: "Tittel", type: "text", required: true, placeholder: "Hva vil du oppnå?" },
-          { name: "next_step", label: "Neste steg", type: "text", placeholder: "Neste handling" },
-          { name: "target_date", label: "Måldato", type: "date" },
-        ]}
-        onCreated={() => setRefreshKey((key) => key + 1)}
-      />
+      <GoalCreateSection onCreated={() => setRefreshKey((key) => key + 1)} />
     </RecordListPage>
   );
 }

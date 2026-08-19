@@ -13,9 +13,12 @@ export function priorityItemHref(item: PriorityFocusItem): string {
       if (record?.asset_id) return `/assets/${String(record.asset_id)}`;
       return id ? chatPrompt(item.title) : "/tasks";
     case "goal":
-      return "/goals";
+      if (record?.module === "asset" && record.linked_id) {
+        return `/assets/${String(record.linked_id)}`;
+      }
+      return id ? `/goals/${id}` : "/goals";
     case "project":
-      return "/projects";
+      return id ? `/projects/${id}` : "/projects";
     case "decision":
       return "/decisions";
     case "inbox":

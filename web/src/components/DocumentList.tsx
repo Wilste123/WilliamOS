@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/format";
 type DocumentListProps = {
   refreshKey?: number;
   assetId?: string;
+  projectId?: string;
   emptyLabel?: string;
 };
 
@@ -27,6 +28,7 @@ function isPreviewable(filename: string): boolean {
 export function DocumentList({
   refreshKey = 0,
   assetId,
+  projectId,
   emptyLabel = "Ingen dokumenter ennå.",
 }: DocumentListProps) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
@@ -41,9 +43,11 @@ export function DocumentList({
     setError(false);
     fetchCollection("/documents")
       .then((data) => {
-        const filtered = assetId
-          ? data.filter((doc) => String(doc.asset_id ?? "") === assetId)
-          : data;
+        const filtered = data.filter((doc) => {
+          if (assetId && String(doc.asset_id ?? "") !== assetId) return false;
+          if (projectId && String(doc.project_id ?? "") !== projectId) return false;
+          return true;
+        });
         setItems(filtered);
         setLoading(false);
       })
@@ -51,7 +55,7 @@ export function DocumentList({
         setError(true);
         setLoading(false);
       });
-  }, [assetId]);
+  }, [assetId, projectId]);
 
   useEffect(() => {
     load();

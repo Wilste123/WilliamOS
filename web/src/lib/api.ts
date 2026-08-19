@@ -1,4 +1,4 @@
-import { clearSession, getSession, saveSession, type AuthSession } from "./auth";
+import { clearSession, getSession, saveSession, type AuthSession, type UserPreferences } from "./auth";
 
 // Default /api uses Next.js proxy → FastAPI (works on iPhone via ngrok).
 // Override only if you expose FastAPI on its own public URL.
@@ -402,10 +402,8 @@ export async function fetchSelfEvolve() {
 }
 
 export async function updateAssistantName(name: string) {
-  return request<{ assistant_name: string }>("/auth/profile", {
-    method: "PATCH",
-    body: JSON.stringify({ assistant_name: name }),
-  });
+  const result = await updateProfile({ assistant_name: name });
+  return { assistant_name: String(result.assistant_name ?? name) };
 }
 
 export async function fetchHome() {
@@ -509,6 +507,78 @@ export async function createGoal(body: Record<string, unknown>) {
 
 export async function updateGoal(goalId: string, body: Record<string, unknown>) {
   return patchRecord(`/goals/${goalId}`, body);
+}
+
+export type GoalDetail = {
+  goal: Record<string, unknown>;
+  linked_record: Record<string, unknown> | null;
+};
+
+export async function fetchGoalDetail(goalId: string) {
+  return request<GoalDetail>(`/goals/${goalId}`);
+}
+
+export type ProjectDetail = {
+  project: Record<string, unknown>;
+  links: Record<string, unknown>[];
+  tasks: Record<string, unknown>[];
+  open_tasks: Record<string, unknown>[];
+  documents: Record<string, unknown>[];
+  goals: Record<string, unknown>[];
+  finance_accounts: Record<string, unknown>[];
+  assets: Record<string, unknown>[];
+  decisions: Record<string, unknown>[];
+  events: Record<string, unknown>[];
+};
+
+export async function fetchProjectDetail(projectId: string) {
+  return request<ProjectDetail>(`/projects/${projectId}`);
+}
+
+export async function linkProjectEntity(
+  projectId: string,
+  entityType: string,
+  entityId: string
+) {
+  return request<Record<string, unknown>>(`/projects/${projectId}/links`, {
+    method: "POST",
+    body: JSON.stringify({ entity_type: entityType, entity_id: entityId }),
+  });
+}
+
+export async function unlinkProjectLink(projectId: string, linkId: string) {
+  return deleteRecord(`/projects/${projectId}/links/${linkId}`);
+}
+
+export async function updateProfile(body: {
+  display_name?: string;
+  assistant_name?: string;
+  preferences?: Partial<UserPreferences>;
+}) {
+  return request<Record<string, unknown>>("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function exportUserData() {
+  const paths = [
+    "/assets",
+    "/tasks",
+    "/projects",
+    "/goals",
+    "/documents",
+    "/decisions",
+    "/events",
+    "/memory",
+  ];
+  const entries = await Promise.all(
+    paths.map(async (path) => {
+      const data = path === "/memory" ? await fetchMemory() : await fetchCollection(path);
+      return [path.replace(/^\//, ""), data] as const;
+    })
+  );
+  return Object.fromEntries(entries);
 }
 
 export async function executeChatAction(action: ChatAction) {
