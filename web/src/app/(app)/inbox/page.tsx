@@ -10,6 +10,7 @@ const OBJECT_LABELS: Record<string, string> = {
   decision: "Beslutning",
   project: "Prosjekt",
   document: "Dokument",
+  gmail_attachment: "PDF fra e-post",
 };
 
 function suggestionLabel(suggestion: Record<string, unknown>): string {
@@ -18,6 +19,10 @@ function suggestionLabel(suggestion: Record<string, unknown>): string {
 
   if (objectType === "document") {
     return String(fields.message ?? fields.label ?? "Dokumentforslag");
+  }
+
+  if (objectType === "gmail_attachment") {
+    return `Importer PDF: ${fields.filename ?? "vedlegg"}`;
   }
 
   const name = fields.name ?? fields.title ?? objectType;
@@ -29,6 +34,9 @@ function suggestionActionLabel(suggestion: Record<string, unknown>): string {
   if (objectType === "document") {
     const fields = (suggestion.fields as Record<string, unknown>) ?? {};
     return String(fields.label ?? "Godta");
+  }
+  if (objectType === "gmail_attachment") {
+    return "Importer";
   }
   return "Opprett";
 }

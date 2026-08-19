@@ -159,6 +159,80 @@ class TestCaptureInboxEntry:
         assert any(i["text"] == "Test tekst" for i in items)
 
 
+class TestGoogleEmailSuggestions:
+    def test_contract_email_suggests_asset_and_decision(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import build_google_email_suggestions
+
+        suggestions = build_google_email_suggestions(
+            subject="kjøpskontrakt - Mazda cx5",
+            gmail_message_id="msg-1",
+        )
+        types = {s["object_type"] for s in suggestions}
+        assert "asset" in types
+        assert "decision" in types
+        asset = next(s for s in suggestions if s["object_type"] == "asset")
+        assert asset["fields"]["name"] == "Mazda cx5"
+
+    def test_pdf_attachment_suggestion(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import build_google_email_suggestions
+
+        suggestions = build_google_email_suggestions(
+            subject="Forsikring",
+            gmail_message_id="msg-2",
+            attachment_meta=[
+                {"filename": "polise.pdf", "attachment_id": "att-1"},
+            ],
+        )
+        pdf = next(s for s in suggestions if s["object_type"] == "gmail_attachment")
+        assert pdf["fields"]["filename"] == "polise.pdf"
+        assert pdf["fields"]["attachment_id"] == "att-1"
+
+    def test_capture_google_email_signal_sets_signal_type(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import capture_google_email_signal
+
+        result = capture_google_email_signal(
+            subject="kjøpskontrakt - Mazda cx5",
+            gmail_message_id="msg-3",
+        )
+        assert result["signal_type"] == "gmail"
+        assert len(result["suggestions"]) >= 2
+
+    def test_gmail_dedupe(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import (
+            capture_google_email_signal,
+            gmail_message_already_in_inbox,
+        )
+
+        capture_google_email_signal(subject="Test", gmail_message_id="dup-1")
+        assert gmail_message_already_in_inbox("dup-1", subject="Test") is True
+        assert gmail_message_already_in_inbox("other", subject="Other") is False
+
+    def test_refresh_empty_gmail_inbox_item(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.services.action_engine import capture_google_email_signal
+        from app.services.storage_service import create_record, list_records
+
+        create_record(
+            "inbox_items",
+            {
+                "text": "Google e-post: kjøpskontrakt - Mazda cx5",
+                "suggestions": [],
+                "status": "captured",
+            },
+        )
+        updated = capture_google_email_signal(
+            subject="kjøpskontrakt - Mazda cx5",
+            gmail_message_id="refresh-1",
+        )
+        assert updated is not None
+        assert len(updated["suggestions"]) >= 2
+        assert len(list_records("inbox_items")) == 1
+
+
 # ---------------------------------------------------------------------------
 # build_dashboard_summary — aggregation logic
 # ---------------------------------------------------------------------------

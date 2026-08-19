@@ -244,20 +244,49 @@ def _parse_amount_from_text(text: str) -> float | None:
         return None
 
 
+def _extract_asset_name_from_email_text(text: str) -> str | None:
+    """Pull a likely asset name from subjects like 'kjøpskontrakt - Mazda cx5'."""
+    cleaned = re.sub(r"^google e-post:\s*", "", text.strip(), flags=re.IGNORECASE)
+    if " - " in cleaned:
+        candidate = cleaned.rsplit(" - ", 1)[-1].strip()
+        if len(candidate) >= 2:
+            return candidate
+    return None
+
+
 def _rule_based_inbox_suggestions(text: str) -> list[dict]:
     lowered = text.lower()
     amount = _parse_amount_from_text(text)
     suggestions = []
+    asset_name_from_subject = _extract_asset_name_from_email_text(text)
 
-    if "kjøp" in lowered or "kjøpe" in lowered or "vurderer" in lowered:
-        asset_name = text[: lowered.find(" til ")].strip() if " til " in lowered else text.strip()
+    contract_keywords = (
+        "kjøpskontrakt",
+        "kjøpekontrakt",
+        "salgskontrakt",
+        "overtakelsesprotokoll",
+        "kontrakt",
+    )
+    is_contract = any(keyword in lowered for keyword in contract_keywords)
+    is_purchase = (
+        "kjøp" in lowered or "kjøpe" in lowered or "vurderer" in lowered or is_contract
+    )
+
+    if is_purchase:
+        if asset_name_from_subject:
+            asset_name = asset_name_from_subject
+        elif " til " in lowered:
+            asset_name = text[: lowered.find(" til ")].strip()
+        else:
+            asset_name = text.strip()
         suggestions.append(
             {
                 "object_type": "asset",
                 "fields": {
                     "name": asset_name,
-                    "status": "considering_purchase",
+                    "status": "active" if is_contract else "considering_purchase",
                     "estimated_value": amount,
+                    "description": text,
                 },
             }
         )
@@ -265,9 +294,46 @@ def _rule_based_inbox_suggestions(text: str) -> list[dict]:
             {
                 "object_type": "decision",
                 "fields": {
-                    "title": f"Vurdere: {text[:60]}",
+                    "title": f"Kjøp: {asset_name}" if is_contract else f"Vurdere: {text[:60]}",
                     "summary": text,
                     "status": "open",
+                },
+            }
+        )
+
+    if "forsikring" in lowered:
+        suggestions.append(
+            {
+                "object_type": "task",
+                "fields": {
+                    "title": "Sjekk forsikring",
+                    "priority": 2,
+                    "status": "open",
+                    "notes": text,
+                },
+            }
+        )
+        if asset_name_from_subject:
+            suggestions.append(
+                {
+                    "object_type": "asset",
+                    "fields": {
+                        "name": asset_name_from_subject,
+                        "description": text,
+                        "status": "active",
+                    },
+                }
+            )
+
+    if "faktura" in lowered or "invoice" in lowered:
+        suggestions.append(
+            {
+                "object_type": "task",
+                "fields": {
+                    "title": "Behandle faktura",
+                    "priority": 2,
+                    "status": "open",
+                    "notes": text,
                 },
             }
         )
@@ -340,6 +406,137 @@ def capture_inbox_entry(text: str, *, fast: bool = False) -> dict:
     append_event(
         title=f"Innboksfangst: {text[:60]}",
         event_type="inbox_captured",
+        notes=f"{len(suggestions)} forslag generert",
+        visibility="private",
+    )
+    return inbox_item
+
+
+def build_google_email_suggestions(
+    *,
+    subject: str,
+    snippet: str = "",
+    from_address: str = "",
+    gmail_message_id: str = "",
+    attachment_meta: list[dict] | None = None,
+) -> list[dict]:
+    """Build inbox suggestions for a Gmail message without calling the LLM."""
+    display_text = f"Google e-post: {subject}".strip()
+    suggestions = _rule_based_inbox_suggestions(display_text)
+    asset_name = _extract_asset_name_from_email_text(display_text)
+    attachments = attachment_meta or []
+    pdf_attachments = [
+        item
+        for item in attachments
+        if str(item.get("filename", "")).lower().endswith(".pdf")
+    ]
+
+    for attachment in pdf_attachments:
+        filename = attachment.get("filename") or "vedlegg.pdf"
+        suggestions.append(
+            {
+                "object_type": "gmail_attachment",
+                "fields": {
+                    "gmail_message_id": gmail_message_id,
+                    "attachment_id": attachment.get("attachment_id"),
+                    "filename": filename,
+                    "asset_name_hint": asset_name,
+                    "subject": subject,
+                    "from_address": from_address,
+                    "snippet": snippet,
+                },
+            }
+        )
+
+    if not suggestions and (subject.strip() or snippet.strip()):
+        suggestions.append(
+            {
+                "object_type": "task",
+                "fields": {
+                    "title": subject[:80] or "E-postoppfølging",
+                    "notes": snippet or subject,
+                    "priority": 2,
+                    "status": "open",
+                    "gmail_message_id": gmail_message_id,
+                },
+            }
+        )
+
+    for suggestion in suggestions:
+        fields = suggestion.setdefault("fields", {})
+        if gmail_message_id and not fields.get("gmail_message_id"):
+            fields["gmail_message_id"] = gmail_message_id
+
+    return suggestions
+
+
+def gmail_message_already_in_inbox(gmail_message_id: str, *, subject: str = "") -> bool:
+    """Return True if this Gmail message was already captured as an inbox signal."""
+    display_text = f"Google e-post: {subject}".strip() if subject else ""
+    for item in list_records("inbox_items"):
+        if display_text and item.get("text") == display_text:
+            return bool(_normalize_suggestions(item.get("suggestions")))
+        if not gmail_message_id:
+            continue
+        for suggestion in _normalize_suggestions(item.get("suggestions")):
+            if (suggestion.get("fields") or {}).get("gmail_message_id") == gmail_message_id:
+                return True
+    return False
+
+
+def capture_google_email_signal(
+    *,
+    subject: str,
+    snippet: str = "",
+    from_address: str = "",
+    gmail_message_id: str = "",
+    attachment_meta: list[dict] | None = None,
+) -> dict | None:
+    """Capture a Gmail message as an inbox item with rule-based suggestions."""
+    display_text = f"Google e-post: {subject}".strip()
+    suggestions = build_google_email_suggestions(
+        subject=subject,
+        snippet=snippet,
+        from_address=from_address,
+        gmail_message_id=gmail_message_id,
+        attachment_meta=attachment_meta,
+    )
+
+    for item in list_records("inbox_items"):
+        if item.get("text") != display_text:
+            continue
+        if _normalize_suggestions(item.get("suggestions")):
+            return None
+        updated = update_record(
+            "inbox_items",
+            item["id"],
+            {
+                "suggestions": suggestions,
+                "signal_type": "gmail",
+                "status": "captured",
+            },
+        )
+        append_event(
+            title=f"Gmail-signal oppdatert: {subject[:60]}",
+            event_type="gmail_inbox_signal",
+            notes=f"{len(suggestions)} forslag generert",
+            visibility="private",
+        )
+        return updated
+
+    inbox_item = create_record(
+        "inbox_items",
+        {
+            "text": display_text,
+            "signal_type": "gmail",
+            "status": "captured",
+            "suggestions": suggestions,
+            "visibility": "private",
+        },
+    )
+    append_event(
+        title=f"Gmail-signal: {subject[:60]}",
+        event_type="gmail_inbox_signal",
         notes=f"{len(suggestions)} forslag generert",
         visibility="private",
     )
@@ -443,6 +640,39 @@ def apply_document_suggestion_action(document_id: str, suggestion_id: str, paylo
     raise ValueError(f"Ukjent dokumentforslag: {suggestion_id}")
 
 
+def apply_gmail_attachment_suggestion(fields: dict) -> dict:
+    """Download a Gmail PDF attachment and register it as a document."""
+    from app.services.google_service import download_gmail_attachment, get_connected_google_access_token
+
+    message_id = fields.get("gmail_message_id")
+    attachment_id = fields.get("attachment_id")
+    filename = fields.get("filename") or "vedlegg.pdf"
+    if not message_id or not attachment_id:
+        raise ValueError("Gmail-vedlegg mangler message_id eller attachment_id")
+
+    access_token = get_connected_google_access_token()
+    if not access_token:
+        raise RuntimeError("Google er ikke tilkoblet")
+
+    file_bytes = download_gmail_attachment(access_token, str(message_id), str(attachment_id))
+
+    asset_id = None
+    hint = fields.get("asset_name_hint")
+    if hint:
+        for asset in list_records("assets"):
+            if (asset.get("name") or "").lower() == str(hint).lower():
+                asset_id = asset["id"]
+                break
+
+    document = save_document(
+        str(filename),
+        file_bytes,
+        asset_id=asset_id,
+        source_module="gmail",
+    )
+    return {"applied": True, "document": document, "action": "gmail_attachment"}
+
+
 _OBJECT_CREATORS = {
     "asset": create_asset,
     "task": create_task,
@@ -484,6 +714,18 @@ def apply_inbox_suggestion(inbox_id: str, suggestion_index: int) -> dict:
             notes=str(result.get("action")),
         )
         return {"object_type": "document", "created": result, "inbox_status": status}
+
+    if object_type == "gmail_attachment":
+        result = apply_gmail_attachment_suggestion(fields)
+        remaining = [s for i, s in enumerate(suggestions) if i != suggestion_index]
+        status = "processed" if not remaining else "partial"
+        update_record("inbox_items", inbox_id, {"suggestions": remaining, "status": status})
+        append_event(
+            title=f"Gmail-vedlegg importert: {fields.get('filename')}",
+            event_type="inbox_suggestion_applied",
+            notes="gmail_attachment",
+        )
+        return {"object_type": "gmail_attachment", "created": result, "inbox_status": status}
 
     creator = _OBJECT_CREATORS.get(object_type)
     if creator is None:

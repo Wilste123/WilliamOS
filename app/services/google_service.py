@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -12,7 +13,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from app.services.action_engine import capture_inbox_entry
+from app.services.action_engine import (
+    capture_google_email_signal,
+    capture_inbox_entry,
+    gmail_message_already_in_inbox,
+)
 from app.services.storage_service import create_record, list_records, update_record
 
 logger = logging.getLogger(__name__)
@@ -164,6 +169,68 @@ def fetch_calendar_events(access_token: str, days: int = 7) -> list[dict]:
     return payload.get("items") or []
 
 
+def get_connected_google_access_token() -> str | None:
+    """Return a valid Google access token for the current user's integration."""
+    integration = next(
+        (
+            row
+            for row in list_records("user_integrations")
+            if row.get("provider") == "google" and row.get("status") == "connected"
+        ),
+        None,
+    )
+    if not integration:
+        return None
+    return _ensure_access_token(integration)
+
+
+def _collect_gmail_attachments(part: dict | None, out: list[dict]) -> None:
+    if not part:
+        return
+    filename = part.get("filename") or ""
+    body = part.get("body") or {}
+    attachment_id = body.get("attachmentId")
+    if filename and attachment_id:
+        out.append(
+            {
+                "filename": filename,
+                "attachment_id": attachment_id,
+                "mime_type": part.get("mimeType"),
+            }
+        )
+    for child in part.get("parts") or []:
+        _collect_gmail_attachments(child, out)
+
+
+def fetch_gmail_message_details(access_token: str, message_id: str) -> dict:
+    url = f"{GMAIL_BASE}/users/me/messages/{urllib.parse.quote(message_id)}?format=full"
+    payload = _http_get(url, access_token)
+    headers = {
+        header.get("name", ""): header.get("value", "")
+        for header in payload.get("payload", {}).get("headers") or []
+    }
+    attachments: list[dict] = []
+    _collect_gmail_attachments(payload.get("payload"), attachments)
+    return {
+        "id": message_id,
+        "subject": headers.get("Subject") or "Uten emne",
+        "from_address": headers.get("From") or "",
+        "snippet": payload.get("snippet") or "",
+        "attachments": attachments,
+    }
+
+
+def download_gmail_attachment(access_token: str, message_id: str, attachment_id: str) -> bytes:
+    url = (
+        f"{GMAIL_BASE}/users/me/messages/{urllib.parse.quote(message_id)}"
+        f"/attachments/{urllib.parse.quote(attachment_id)}"
+    )
+    payload = _http_get(url, access_token)
+    encoded = payload.get("data") or ""
+    padded = encoded + "=" * (-len(encoded) % 4)
+    return base64.urlsafe_b64decode(padded.encode())
+
+
 def _gmail_subject(access_token: str, message_id: str) -> str:
     url = (
         f"{GMAIL_BASE}/users/me/messages/{urllib.parse.quote(message_id)}"
@@ -185,7 +252,7 @@ def fetch_unread_emails(access_token: str, limit: int = 8) -> list[dict]:
         message_id = message.get("id")
         if not message_id:
             continue
-        results.append({"id": message_id, "subject": _gmail_subject(access_token, message_id)})
+        results.append(fetch_gmail_message_details(access_token, message_id))
     return results
 
 
@@ -210,9 +277,19 @@ def sync_google_to_inbox(integration: dict) -> dict:
             created += 1
 
         for message in fetch_unread_emails(access):
+            message_id = message.get("id") or ""
             subject = message.get("subject") or "Uten emne"
-            capture_inbox_entry(f"Google e-post: {subject}", fast=True)
-            created += 1
+            if gmail_message_already_in_inbox(message_id, subject=subject):
+                continue
+            item = capture_google_email_signal(
+                subject=subject,
+                snippet=message.get("snippet") or "",
+                from_address=message.get("from_address") or "",
+                gmail_message_id=message_id,
+                attachment_meta=message.get("attachments") or [],
+            )
+            if item is not None:
+                created += 1
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Kunne ikke hente fra Google: {exc}") from exc
 
