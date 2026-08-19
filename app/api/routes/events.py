@@ -6,11 +6,11 @@ from app.services.storage_service import list_records
 router = protected_router()
 
 
-@router.get("/")
+@router.get("")
 def list_events():
     return list_records("events")
 
 
-@router.post("/")
+@router.post("")
 def add_event(event: EventCreate):
     return create_event(event.model_dump(mode="json"))

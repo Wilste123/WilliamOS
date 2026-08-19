@@ -213,6 +213,23 @@ class TestSaveUploadedFile:
         result = document_storage.save_uploaded_file("photo.jpg", bytes(range(256)))
         assert result["text_content"] is None
 
+    def test_storage_path_sanitizes_special_characters(self, monkeypatch):
+        from app.services import document_storage
+
+        _patch_supabase(monkeypatch)
+        _set_test_context()
+
+        result = document_storage.save_uploaded_file(
+            "kjøpskontrakt cx-5.pdf",
+            b"%PDF-1.4",
+            source_module="gmail",
+        )
+
+        assert result["filename"] == "kjøpskontrakt cx-5.pdf"
+        assert " " not in result["storage_path"]
+        assert "ø" not in result["storage_path"]
+        assert result["storage_path"].endswith("_kj_pskontrakt_cx-5.pdf")
+
     def test_read_list_and_delete_use_supabase_storage(self, monkeypatch):
         from app.services import document_storage
 

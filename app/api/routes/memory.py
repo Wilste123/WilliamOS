@@ -5,7 +5,7 @@ from app.services.storage_service import list_records
 router = protected_router()
 
 
-@router.get("/")
+@router.get("")
 def list_memory():
     return {
         "items": list_records("memory_items"),

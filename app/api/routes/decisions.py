@@ -8,12 +8,12 @@ from app.services.storage_service import list_records
 router = protected_router()
 
 
-@router.get("/")
+@router.get("")
 def list_decisions():
     return list_records("decisions")
 
 
-@router.post("/")
+@router.post("")
 def add_decision(decision: DecisionCreate):
     return create_decision(decision.model_dump(mode="json"))
 

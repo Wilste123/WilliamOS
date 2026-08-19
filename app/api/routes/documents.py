@@ -16,7 +16,7 @@ class DocumentSuggestionApplyRequest(BaseModel):
     payload: dict = {}
 
 
-@router.get("/")
+@router.get("")
 def list_documents():
     return list_records("documents")
 

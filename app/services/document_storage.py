@@ -1,5 +1,6 @@
 import mimetypes
 import os
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -75,6 +76,25 @@ def _build_storage_prefix(*, visibility: str, source_module: str | None) -> str:
     return f"household/{context.household_id}/{module}"
 
 
+def _sanitize_filename(filename: str) -> str:
+    """Return an ASCII-safe filename segment for Supabase Storage object keys."""
+    name = Path(filename).name.replace("/", "_").replace("\\", "_") or "document"
+    stem = Path(name).stem
+    suffix = Path(name).suffix.lower()
+
+    safe_stem = "".join(
+        char if char.isascii() and (char.isalnum() or char in {"-", "_"}) else "_"
+        for char in stem
+    )
+    safe_stem = re.sub(r"_+", "_", safe_stem).strip("_") or "document"
+
+    safe_suffix = "".join(char for char in suffix if char.isascii() and (char.isalnum() or char == "."))
+    if not safe_suffix.startswith("."):
+        safe_suffix = f".{safe_suffix.lstrip('.')}" if safe_suffix else ".bin"
+
+    return f"{safe_stem}{safe_suffix}"
+
+
 def upload_document(
     filename: str,
     content: bytes,
@@ -84,7 +104,7 @@ def upload_document(
     visibility: str = "household",
 ) -> dict:
     storage = _require_storage("upload_document")
-    safe_name = Path(filename).name.replace("/", "_").replace("\\", "_") or "document"
+    safe_name = _sanitize_filename(filename)
     prefix = _build_storage_prefix(visibility=visibility, source_module=source_module)
     storage_path = f"{prefix}/{uuid4()}_{safe_name}"
     file_options = {

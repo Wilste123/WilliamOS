@@ -22,7 +22,7 @@ export default function DocumentsPage() {
       <RecordListPage
         title="Lagrede dokumenter"
         description="Filer du har lastet opp."
-        path="/documents/"
+        path="/documents"
         fields={["filename", "source_module", "created_at"]}
         refreshKey={refreshKey}
         emptyLabel="Ingen dokumenter ennå. Last opp den første over."

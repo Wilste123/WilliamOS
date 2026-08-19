@@ -8,12 +8,12 @@ from app.services.storage_service import list_records
 router = protected_router()
 
 
-@router.get("/")
+@router.get("")
 def list_projects():
     return list_records("projects")
 
 
-@router.post("/")
+@router.post("")
 def create_project(project: ProjectCreate):
     return create_project_record(project.model_dump(mode="json"))
 
