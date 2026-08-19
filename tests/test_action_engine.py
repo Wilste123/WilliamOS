@@ -232,6 +232,22 @@ class TestGoogleEmailSuggestions:
         assert len(updated["suggestions"]) >= 2
         assert len(list_records("inbox_items")) == 1
 
+    def test_apply_asset_strips_gmail_metadata(self, monkeypatch):
+        store: dict = {}
+        _patch_supabase(monkeypatch, _make_fake_supabase(store))
+        from app.services.action_engine import apply_inbox_suggestion, capture_google_email_signal
+        from app.services.storage_service import list_records
+
+        inbox_item = capture_google_email_signal(
+            subject="kjøpskontrakt - Mazda cx5",
+            gmail_message_id="msg-x",
+        )
+        result = apply_inbox_suggestion(inbox_item["id"], 0)
+
+        assert result["object_type"] == "asset"
+        asset = list_records("assets")[0]
+        assert "gmail_message_id" not in asset
+        assert asset["name"] == "Mazda cx5"
 
 # ---------------------------------------------------------------------------
 # build_dashboard_summary — aggregation logic

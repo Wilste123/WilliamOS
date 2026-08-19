@@ -412,6 +412,31 @@ def capture_inbox_entry(text: str, *, fast: bool = False) -> dict:
     return inbox_item
 
 
+_INBOX_METADATA_FIELDS = frozenset(
+    {
+        "gmail_message_id",
+        "attachment_id",
+        "filename",
+        "asset_name_hint",
+        "subject",
+        "from_address",
+        "snippet",
+    }
+)
+
+
+def _payload_for_object_creator(object_type: str, fields: dict) -> dict:
+    """Strip inbox-only metadata before persisting asset/task/decision/project records."""
+    payload = {
+        key: value
+        for key, value in fields.items()
+        if key not in _INBOX_METADATA_FIELDS and value is not None
+    }
+    if object_type == "task" and "notes" in payload and "description" not in payload:
+        payload["description"] = payload.pop("notes")
+    return payload
+
+
 def build_google_email_suggestions(
     *,
     subject: str,
@@ -461,11 +486,6 @@ def build_google_email_suggestions(
                 },
             }
         )
-
-    for suggestion in suggestions:
-        fields = suggestion.setdefault("fields", {})
-        if gmail_message_id and not fields.get("gmail_message_id"):
-            fields["gmail_message_id"] = gmail_message_id
 
     return suggestions
 
@@ -731,7 +751,7 @@ def apply_inbox_suggestion(inbox_id: str, suggestion_index: int) -> dict:
     if creator is None:
         raise ValueError(f"Ukjent objekttype: {object_type}")
 
-    fields = {**fields, "visibility": "household"}
+    fields = {**_payload_for_object_creator(object_type, fields), "visibility": "household"}
     created = creator(fields)
     remaining = [s for i, s in enumerate(suggestions) if i != suggestion_index]
     status = "processed" if not remaining else "partial"
