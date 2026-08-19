@@ -142,6 +142,19 @@ export default function SettingsPage() {
         </section>
 
         <section className="space-y-3 rounded-2xl border border-border p-4">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">AI-profil</h2>
+          <p className="text-sm text-muted">
+            Hva assistenten vet om deg — brukes i chat og anbefalinger.
+          </p>
+          <Link
+            href="/onboarding?edit=1"
+            className="inline-block rounded-xl border border-border px-4 py-3 text-sm text-accent"
+          >
+            Rediger onboarding-profil
+          </Link>
+        </section>
+
+        <section className="space-y-3 rounded-2xl border border-border p-4">
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted">Preferanser</h2>
           <label className="block space-y-1 text-sm">
             <span>Språk</span>

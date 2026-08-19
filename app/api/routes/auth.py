@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, use_user_context
 from app.services.auth_core import context_to_response, sign_in, sign_up
+from app.services.onboarding_service import complete_onboarding, get_onboarding_state, skip_onboarding
 from app.services.profile_service import get_user_profile, update_assistant_name, update_user_profile
 
 router = APIRouter()
@@ -43,6 +44,21 @@ class MeResponse(BaseModel):
     display_name: str | None = None
     assistant_name: str | None = None
     preferences: dict | None = None
+
+
+class OnboardingRequest(BaseModel):
+    assistant_name: str | None = Field(default=None, min_length=1)
+    primary_use: str | None = None
+    assets_mentioned: list[str] | None = None
+    focus_now: str | None = Field(default=None, max_length=500)
+
+
+class OnboardingResponse(BaseModel):
+    onboarding_completed: bool
+    assistant_name: str | None = None
+    primary_use: str | None = None
+    assets_mentioned: list[str] = Field(default_factory=list)
+    focus_now: str | None = None
 
 
 @router.post("/signup", response_model=AuthResponse)
@@ -97,3 +113,30 @@ def update_profile(request: ProfileUpdateRequest, user: CurrentUser):
         preferences=request.preferences,
     )
     return profile
+
+
+@router.get("/onboarding", response_model=OnboardingResponse)
+def get_onboarding(user: CurrentUser):
+    use_user_context(user)
+    return OnboardingResponse(**get_onboarding_state())
+
+
+@router.post("/onboarding", response_model=OnboardingResponse)
+def post_onboarding(request: OnboardingRequest, user: CurrentUser):
+    use_user_context(user)
+    try:
+        state = complete_onboarding(
+            assistant_name=request.assistant_name,
+            primary_use=request.primary_use,
+            assets_mentioned=request.assets_mentioned,
+            focus_now=request.focus_now,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return OnboardingResponse(**state)
+
+
+@router.post("/onboarding/skip", response_model=OnboardingResponse)
+def skip_onboarding_route(user: CurrentUser):
+    use_user_context(user)
+    return OnboardingResponse(**skip_onboarding())

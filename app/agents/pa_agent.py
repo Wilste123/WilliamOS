@@ -7,6 +7,7 @@ from app.agents.self_evolve import log_request
 from app.services.memory_service import extract_memory_from_turn, get_recent_memory_text, save_memory
 from app.services.retrieval_service import build_document_context, search_documents
 from app.services.context_service import build_agent_context_blocks
+from app.services.onboarding_service import build_onboarding_system_block
 from app.services.chat_history_service import list_chat_messages
 from app.services.web_search_service import search_web
 from app.services.calendar_service import (
@@ -907,6 +908,10 @@ def _build_agent_messages(
         {"role": "system", "content": system_prompt},
         {"role": "system", "content": f"Relevant saved memory:\n{memory}"},
     ]
+
+    onboarding_block = build_onboarding_system_block()
+    if onboarding_block:
+        messages.append({"role": "system", "content": onboarding_block})
 
     for block in build_agent_context_blocks():
         messages.append({"role": "system", "content": block})

@@ -1,4 +1,4 @@
-import { clearSession, getSession, saveSession, type AuthSession, type UserPreferences } from "./auth";
+import { clearSession, getSession, saveSession, type AuthSession, type UserPreferences, type OnboardingState } from "./auth";
 
 // Default /api uses Next.js proxy → FastAPI (works on iPhone via ngrok).
 // Override only if you expose FastAPI on its own public URL.
@@ -608,6 +608,60 @@ export async function updateProfile(body: {
     method: "PATCH",
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchOnboarding(): Promise<OnboardingState> {
+  return request<OnboardingState>("/auth/onboarding");
+}
+
+export async function submitOnboarding(body: {
+  assistant_name?: string;
+  primary_use?: string;
+  assets_mentioned?: string[];
+  focus_now?: string;
+}): Promise<OnboardingState> {
+  const result = await request<OnboardingState>("/auth/onboarding", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  const session = getSession();
+  if (session) {
+    saveSession({
+      ...session,
+      assistant_name: result.assistant_name ?? session.assistant_name,
+      preferences: {
+        ...session.preferences,
+        language: session.preferences?.language ?? "nb",
+        default_asset_type: session.preferences?.default_asset_type ?? "other",
+        inbox_automation: session.preferences?.inbox_automation ?? true,
+        onboarding_completed: result.onboarding_completed,
+        primary_use: result.primary_use,
+        assets_mentioned: result.assets_mentioned,
+        focus_now: result.focus_now,
+      },
+    });
+  }
+  return result;
+}
+
+export async function skipOnboarding(): Promise<OnboardingState> {
+  const result = await request<OnboardingState>("/auth/onboarding/skip", {
+    method: "POST",
+  });
+  const session = getSession();
+  if (session) {
+    saveSession({
+      ...session,
+      preferences: {
+        ...session.preferences,
+        language: session.preferences?.language ?? "nb",
+        default_asset_type: session.preferences?.default_asset_type ?? "other",
+        inbox_automation: session.preferences?.inbox_automation ?? true,
+        onboarding_completed: true,
+      },
+    });
+  }
+  return result;
 }
 
 export async function exportUserData() {

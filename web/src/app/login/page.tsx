@@ -32,7 +32,7 @@ export default function LoginPage() {
           household_name: String(form.get("household_name") ?? "Min husholdning"),
         });
       }
-      router.replace("/home");
+      router.replace(mode === "signup" ? "/onboarding" : "/home");
     } catch (err) {
       let message = "Noe gikk galt";
       if (err instanceof ApiError) {

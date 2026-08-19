@@ -9,6 +9,10 @@ DEFAULT_PREFERENCES = {
     "language": "nb",
     "default_asset_type": "other",
     "inbox_automation": True,
+    "onboarding_completed": False,
+    "primary_use": None,
+    "assets_mentioned": [],
+    "focus_now": None,
 }
 MIGRATION_HINT = "Kjør migrations/2026-08-16_assistant_name.sql i Supabase SQL Editor."
 PREFERENCES_MIGRATION_HINT = "Kjør migrations/2026-08-19_memory_preferences.sql i Supabase SQL Editor."
@@ -29,7 +33,9 @@ def _normalize_preferences(raw: object | None) -> dict:
     if not isinstance(raw, dict):
         return dict(DEFAULT_PREFERENCES)
     merged = dict(DEFAULT_PREFERENCES)
-    merged.update({key: raw[key] for key in merged if key in raw})
+    for key in merged:
+        if key in raw:
+            merged[key] = raw[key]
     return merged
 
 

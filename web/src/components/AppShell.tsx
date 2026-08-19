@@ -67,9 +67,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, BOOT_TIMEOUT_MS);
 
     Promise.race([fetchMe(), timeout])
-      .then(() => {
+      .then((me) => {
         if (cancelled) return;
         validatedTokenRef.current = getSession()?.access_token ?? accessToken;
+        if (!me.preferences?.onboarding_completed) {
+          router.replace("/onboarding");
+          return;
+        }
         setAuthReady(true);
         setBootError(null);
         if (!usageLoggedRef.current) {

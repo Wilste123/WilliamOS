@@ -13,6 +13,18 @@ export type UserPreferences = {
   language: string;
   default_asset_type: string;
   inbox_automation: boolean;
+  onboarding_completed?: boolean;
+  primary_use?: string | null;
+  assets_mentioned?: string[];
+  focus_now?: string | null;
+};
+
+export type OnboardingState = {
+  onboarding_completed: boolean;
+  assistant_name: string | null;
+  primary_use: string | null;
+  assets_mentioned: string[];
+  focus_now: string | null;
 };
 
 export const SESSION_STORAGE_KEY = "williamos_session";
