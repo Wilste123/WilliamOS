@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { StatCard } from "@/components/StatCard";
-import { fetchHome, fetchWeeklyBrief, type WeeklyBrief } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { fetchCalendar, fetchHome, fetchWeeklyBrief, type CalendarEvent, type WeeklyBrief } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { getTimeGreeting, type HomeSummary } from "@/lib/home";
 import { priorityItemActionLabel, priorityItemHref } from "@/lib/priority-links";
 
@@ -32,13 +32,19 @@ function HomeSkeleton() {
 export default function HomePage() {
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [brief, setBrief] = useState<WeeklyBrief | null>(null);
+  const [upcoming, setUpcoming] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const [home, weekly] = await Promise.all([fetchHome(), fetchWeeklyBrief()]);
+    const [home, weekly, calendar] = await Promise.all([
+      fetchHome(),
+      fetchWeeklyBrief(),
+      fetchCalendar({ days: 3 }),
+    ]);
     setSummary(home);
     setBrief(weekly);
+    setUpcoming(calendar.slice(0, 4));
     setError(false);
   }, []);
 
@@ -102,6 +108,30 @@ export default function HomePage() {
         />
         <StatCard label="Prosjekter" value={`${summary.metrics?.projects ?? 0} aktive`} />
       </div>
+
+      <section className="rounded-2xl border border-border p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">Kommende</h2>
+          <Link href="/calendar" className="text-xs text-accent">
+            Åpne kalender
+          </Link>
+        </div>
+        {upcoming.length > 0 ? (
+          <ul className="space-y-2">
+            {upcoming.map((event) => (
+              <li key={String(event.id)} className="rounded-xl bg-zinc-900/60 px-3 py-2 text-sm">
+                <p className="break-words font-medium">{String(event.title ?? "Avtale")}</p>
+                <p className="text-xs text-muted">
+                  {formatDateTime(event.start_at)}
+                  {event.source === "google" ? " · Google" : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">Ingen avtaler de neste dagene.</p>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-border p-4">
         <div className="mb-4 flex items-center justify-between gap-3">

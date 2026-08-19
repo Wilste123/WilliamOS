@@ -19,6 +19,35 @@ export function formatDate(value: unknown): string {
   return `${day}.${month}.${year}`;
 }
 
+export function formatTime(value: unknown): string {
+  if (!value) return "";
+  const raw = String(value);
+  if (!raw.includes("T")) return "";
+  const time = raw.split("T")[1]?.slice(0, 5);
+  if (!time) return "";
+  return time.replace(":", ".");
+}
+
+export function formatDateTime(value: unknown): string {
+  const date = formatDate(value);
+  const time = formatTime(value);
+  if (!date) return "";
+  return time ? `${date} ${time}` : date;
+}
+
+export function toDateInputValue(value: unknown): string {
+  if (!value) return "";
+  const raw = String(value);
+  return raw.includes("T") ? raw.split("T")[0] : raw.slice(0, 10);
+}
+
+export function toTimeInputValue(value: unknown): string {
+  if (!value) return "";
+  const raw = String(value);
+  if (!raw.includes("T")) return "";
+  return raw.split("T")[1]?.slice(0, 5) ?? "";
+}
+
 export function priorityLabel(priority: unknown): string {
   const p = Number(priority) || 2;
   if (p >= 3) return "Høy";

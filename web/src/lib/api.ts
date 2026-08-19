@@ -344,6 +344,44 @@ export async function deleteEvent(eventId: string) {
   return deleteRecord(`/events/${eventId}`);
 }
 
+export type CalendarEvent = Record<string, unknown> & {
+  id?: string;
+  title?: string;
+  start_at?: string;
+  end_at?: string;
+  all_day?: boolean;
+  source?: string;
+  location?: string;
+  description?: string;
+};
+
+export async function fetchCalendar(options: { days?: number } = {}) {
+  const query = options.days ? `?days=${options.days}` : "";
+  return request<CalendarEvent[]>(`/calendar${query}`);
+}
+
+export async function createCalendarEvent(body: Record<string, unknown>) {
+  return createRecord("/calendar", body);
+}
+
+export async function updateCalendarEvent(eventId: string, body: Record<string, unknown>) {
+  return request<CalendarEvent>(`/calendar/${eventId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCalendarEvent(eventId: string) {
+  return deleteRecord(`/calendar/${eventId}`);
+}
+
+export async function syncGoogleCalendar() {
+  return request<{ synced_events?: number; created?: number; updated?: number }>(
+    "/calendar/sync/google",
+    { method: "POST" }
+  );
+}
+
 export async function deleteTask(taskId: string) {
   return deleteRecord(`/tasks/${taskId}`);
 }
@@ -539,6 +577,7 @@ export async function exportUserData() {
     "/goals",
     "/documents",
     "/decisions",
+    "/calendar",
     "/timeline",
     "/memory",
   ];

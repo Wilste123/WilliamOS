@@ -1,5 +1,6 @@
 import {
   Brain,
+  CalendarDays,
   CheckSquare,
   FileText,
   FolderKanban,
@@ -29,6 +30,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   projects: FolderKanban,
   decisions: GitBranch,
   documents: FileText,
+  calendar: CalendarDays,
   timeline: History,
   finance: Wallet,
   health: HeartPulse,

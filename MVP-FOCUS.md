@@ -32,6 +32,7 @@ Build and test a **small, excellent** daily-use app — not the full WilliamOS p
 | Beslutninger | `/decisions` | Decision log |
 | Timeline | `/timeline` | Life events |
 | Dokumenter | `/documents` | Upload + list |
+| Kalender | `/calendar` | Month view, create/edit, Google sync |
 | Minne | `/memory` | Save facts for PA context |
 | Innstillinger | `/settings` | Profile, preferences, export, usage stats |
 

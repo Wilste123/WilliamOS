@@ -9,6 +9,7 @@ export type NavIconName =
   | "decisions"
   | "documents"
   | "timeline"
+  | "calendar"
   | "finance"
   | "health"
   | "integrations"
@@ -38,6 +39,7 @@ export const LIFE_NAV: NavItem[] = [
   { href: "/projects", label: "Prosjekter", icon: "projects" },
   { href: "/decisions", label: "Beslutninger", icon: "decisions" },
   { href: "/documents", label: "Dokumenter", icon: "documents" },
+  { href: "/calendar", label: "Kalender", icon: "calendar" },
   { href: "/timeline", label: "Historikk", icon: "timeline" },
 ];
 
