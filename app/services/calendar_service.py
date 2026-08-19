@@ -16,6 +16,13 @@ from app.services.storage_service import create_record, delete_record, list_reco
 COLLECTION = "calendar_events"
 
 
+def _list_records_safe() -> list[dict]:
+    try:
+        return list_records(COLLECTION)
+    except Exception:
+        return []
+
+
 def _parse_dt(value: object | None) -> datetime | None:
     if value is None:
         return None
@@ -51,7 +58,7 @@ def list_calendar_events(
     else:
         range_end = _parse_dt(to_date) or (range_start + timedelta(days=30))
 
-    rows = list_records(COLLECTION)
+    rows = _list_records_safe()
     filtered: list[dict] = []
     for row in rows:
         start_at = _parse_dt(row.get("start_at"))
@@ -69,7 +76,7 @@ def list_upcoming(days: int = 7, limit: int = 20) -> list[dict]:
 
 
 def get_calendar_event(event_id: str) -> dict | None:
-    rows = list_records(COLLECTION)
+    rows = _list_records_safe()
     return next((row for row in rows if str(row.get("id")) == event_id), None)
 
 

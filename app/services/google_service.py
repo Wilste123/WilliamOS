@@ -332,11 +332,14 @@ def sync_google_calendar_events(integration: dict, *, days: int = 30) -> dict:
         raise RuntimeError("Google er ikke tilkoblet eller token er utløpt.")
 
     google_events = fetch_calendar_events(access, days=days, max_results=100)
-    existing = [
-        row
-        for row in list_records("calendar_events")
-        if row.get("source") == "google" and row.get("external_id")
-    ]
+    try:
+        existing = [
+            row
+            for row in list_records("calendar_events")
+            if row.get("source") == "google" and row.get("external_id")
+        ]
+    except Exception:
+        existing = []
     by_external = {row["external_id"]: row for row in existing}
 
     created = 0

@@ -112,6 +112,21 @@ def _require_supabase(operation: str, collection: str):
     return client
 
 
+def _reraise_if_jwt_expired(exc: Exception) -> None:
+    message = str(getattr(exc, "message", None) or exc).lower()
+    code = str(getattr(exc, "code", "") or "").lower()
+    if code == "pgrst303" or "jwt expired" in message or "pgrst303" in message:
+        raise RuntimeError("Sesjonen er utløpt. Logg inn på nytt.") from exc
+
+
+def _execute_query(query):
+    try:
+        return query.execute()
+    except Exception as exc:
+        _reraise_if_jwt_expired(exc)
+        raise
+
+
 def _apply_auth_fields(collection: str, payload: dict) -> dict:
     """Stamp ownership from the current session — callers cannot override user/household."""
     context = _require_auth_context()
@@ -154,7 +169,7 @@ def list_records(collection: str) -> list[dict]:
         collection,
         context,
     )
-    response = query.execute()
+    response = _execute_query(query)
     rows = response_data(response, []) or []
     return [row for row in rows if can_access_record(row, context, collection)]
 
@@ -168,7 +183,7 @@ def get_record(collection: str, record_id: str) -> dict | None:
         collection,
         context,
     )
-    response = query.execute()
+    response = _execute_query(query)
     row = response_data(response, [])
     if not row:
         return None
@@ -186,7 +201,7 @@ def create_record(collection: str, payload: dict) -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
         **_apply_auth_fields(collection, payload),
     }
-    response = client.table(collection).insert(record).execute()
+    response = _execute_query(client.table(collection).insert(record))
     data = response_data(response, [])
     if data:
         return data[0]
@@ -203,7 +218,7 @@ def update_record(collection: str, record_id: str, updates: dict) -> dict | None
         collection,
         context,
     )
-    response = query.execute()
+    response = _execute_query(query)
     data = response_data(response, [])
     if not data:
         return None
@@ -234,13 +249,13 @@ def delete_records(collection: str, record_ids: list[str] | None = None) -> int:
                 collection,
                 context,
             )
-            query.execute()
+            _execute_query(query)
             deleted += 1
         return deleted
     rows = list_records(collection)
     deleted = 0
     for row in rows:
-        client.table(collection).delete().eq("id", row["id"]).execute()
+        _execute_query(client.table(collection).delete().eq("id", row["id"]))
         deleted += 1
     return deleted
 

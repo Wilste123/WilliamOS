@@ -34,18 +34,34 @@ export default function HomePage() {
   const [brief, setBrief] = useState<WeeklyBrief | null>(null);
   const [upcoming, setUpcoming] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const [home, weekly, calendar] = await Promise.all([
+    const [homeResult, weeklyResult, calendarResult] = await Promise.allSettled([
       fetchHome(),
       fetchWeeklyBrief(),
       fetchCalendar({ days: 3 }),
     ]);
-    setSummary(home);
-    setBrief(weekly);
-    setUpcoming(calendar.slice(0, 4));
-    setError(false);
+    if (homeResult.status === "fulfilled") {
+      setSummary(homeResult.value);
+      setError(false);
+      setErrorMessage(null);
+    } else {
+      setError(true);
+      const reason = homeResult.reason;
+      if (reason instanceof Error) {
+        setErrorMessage(reason.message);
+      }
+    }
+    if (weeklyResult.status === "fulfilled") {
+      setBrief(weeklyResult.value);
+    }
+    if (calendarResult.status === "fulfilled") {
+      setUpcoming(calendarResult.value.slice(0, 4));
+    } else {
+      setUpcoming([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -64,7 +80,11 @@ export default function HomePage() {
   }
 
   if (error && !summary) {
-    return <p className="text-sm text-muted">Kunne ikke laste startsiden.</p>;
+    return (
+      <p className="text-sm text-muted">
+        {errorMessage ?? "Kunne ikke laste startsiden."}
+      </p>
+    );
   }
 
   if (!summary) {

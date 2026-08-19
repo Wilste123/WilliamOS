@@ -36,7 +36,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     const accessToken = session.access_token;
-    if (validatedTokenRef.current === accessToken) return;
+    if (validatedTokenRef.current === accessToken) {
+      setAuthReady(true);
+      return;
+    }
     if (bootInFlightRef.current === accessToken) return;
 
     bootInFlightRef.current = accessToken;
@@ -90,6 +93,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      if (bootInFlightRef.current === accessToken) {
+        bootInFlightRef.current = null;
+      }
     };
   }, [isClient, session?.access_token, router]);
 

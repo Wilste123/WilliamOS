@@ -35,3 +35,42 @@ def test_expired_jwt_maps_to_runtime_error():
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert str(exc) == "Sesjonen er utløpt. Logg inn på nytt."
+
+
+def test_finalize_tokens_publishes_rotated_session(monkeypatch):
+    from app.services import auth_core
+
+    published: list[tuple[str, str]] = []
+
+    class FakeSession:
+        access_token = "rotated-access"
+        refresh_token = "rotated-refresh"
+
+    class FakeAuth:
+        def get_session(self):
+            return FakeSession()
+
+    class FakeClient:
+        auth = FakeAuth()
+
+        class postgrest:
+            @staticmethod
+            def auth(_token: str) -> None:
+                return None
+
+    monkeypatch.setattr(
+        auth_core,
+        "_publish_token_rotation",
+        lambda original_refresh, access, refresh, **kwargs: published.append((access, refresh)),
+    )
+
+    access, refresh = auth_core._finalize_tokens(
+        FakeClient(),
+        "stale-access",
+        "old-refresh",
+        "old-refresh",
+    )
+
+    assert access == "rotated-access"
+    assert refresh == "rotated-refresh"
+    assert published == [("rotated-access", "rotated-refresh")]

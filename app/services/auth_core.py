@@ -32,6 +32,60 @@ def _lookup_token_rotation(old_refresh: str) -> tuple[str, str] | None:
         return access_token, new_refresh
 
 
+def _read_client_session_tokens(client) -> tuple[str | None, str | None]:
+    session = client.auth.get_session()
+    if session is None:
+        return None, None
+    access = getattr(session, "access_token", None)
+    refresh = getattr(session, "refresh_token", None)
+    if access is None and isinstance(session, dict):
+        access = session.get("access_token")
+        refresh = session.get("refresh_token")
+    return access, refresh
+
+
+def _publish_token_rotation(
+    original_refresh: str,
+    access_token: str,
+    refresh_token: str,
+    *,
+    previous_access: str | None = None,
+    previous_refresh: str | None = None,
+) -> None:
+    prev_access = previous_access or ""
+    prev_refresh = (previous_refresh or original_refresh).strip()
+    if access_token == prev_access and refresh_token == prev_refresh:
+        return
+    _cache_token_rotation(original_refresh, access_token, refresh_token)
+    from app.services.auth_context import mark_refreshed_tokens
+
+    mark_refreshed_tokens(access_token, refresh_token)
+
+
+def _finalize_tokens(
+    client,
+    access_token: str,
+    refresh_token: str,
+    original_refresh: str,
+) -> tuple[str, str]:
+    """Align context tokens with Supabase Auth after set_session/refresh."""
+    previous_access, previous_refresh = access_token, refresh_token
+    live_access, live_refresh = _read_client_session_tokens(client)
+    if live_access:
+        access_token = live_access
+    if live_refresh:
+        refresh_token = live_refresh
+    client.postgrest.auth(access_token)
+    _publish_token_rotation(
+        original_refresh,
+        access_token,
+        refresh_token,
+        previous_access=previous_access,
+        previous_refresh=previous_refresh,
+    )
+    return access_token, refresh_token
+
+
 def _raise_auth_error(exc: Exception) -> None:
     """Convert Supabase auth exceptions into user-facing RuntimeErrors."""
     message = str(getattr(exc, "message", None) or exc)
@@ -291,12 +345,10 @@ def build_context_from_tokens(access_token: str, refresh_token: str) -> UserCont
                     access_token = session.access_token
                     refresh_token = session.refresh_token or original_refresh
                     client.auth.set_session(access_token, refresh_token)
-                    client.postgrest.auth(access_token)
-                    _cache_token_rotation(original_refresh, access_token, refresh_token)
 
-                    from app.services.auth_context import mark_refreshed_tokens
-
-                    mark_refreshed_tokens(access_token, refresh_token)
+    access_token, refresh_token = _finalize_tokens(
+        client, access_token, refresh_token, original_refresh
+    )
 
     display_name = _extract_display_name(user)
     household_id = _find_household_id(client, user.id)

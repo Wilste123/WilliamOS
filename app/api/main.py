@@ -73,6 +73,25 @@ async def bind_auth_context_middleware(request: Request, call_next):
     return await auth_context_middleware(request, call_next)
 
 
+@app.exception_handler(RuntimeError)
+async def runtime_error_handler(_request: Request, exc: RuntimeError):
+    message = str(exc)
+    lowered = message.lower()
+    if any(
+        phrase in lowered
+        for phrase in (
+            "sesjonen er utløpt",
+            "logg inn på nytt",
+            "authentication required",
+            "missing session tokens",
+            "sign in to access",
+        )
+    ):
+        return JSONResponse(status_code=401, content={"detail": message})
+    logger.exception("RuntimeError: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": message})
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(_request: Request, exc: Exception):
     logger.exception("Unhandled API error: %s", exc)

@@ -64,6 +64,24 @@ function syncSessionFromResponse(response: Response): void {
   saveSession({ ...session, access_token: accessToken, refresh_token: refreshToken });
 }
 
+function isSessionExpiredMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("jwt expired") ||
+    lower.includes("pgrst303") ||
+    lower.includes("sesjonen er utløpt") ||
+    lower.includes("logg inn på nytt") ||
+    lower.includes("du må logge inn")
+  );
+}
+
+function handleAuthFailure(status: number, message: string, auth: boolean): void {
+  if (!auth) return;
+  if (status === 401 || status === 403 || isSessionExpiredMessage(message)) {
+    logout();
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, headers, ...rest } = options;
   const session = getSession();
@@ -102,7 +120,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
-    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
+    const message = parseErrorDetail(payload, response.status);
+    handleAuthFailure(response.status, message, auth);
+    throw new ApiError(message, response.status);
   }
 
   syncSessionFromResponse(response);
@@ -124,7 +144,9 @@ async function fetchAuthedBlob(path: string): Promise<Blob> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
+    const message = parseErrorDetail(payload, response.status);
+    handleAuthFailure(response.status, message, true);
+    throw new ApiError(message, response.status);
   }
 
   syncSessionFromResponse(response);
@@ -224,7 +246,9 @@ export async function streamChat(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new ApiError(parseErrorDetail(payload, response.status), response.status);
+    const message = parseErrorDetail(payload, response.status);
+    handleAuthFailure(response.status, message, true);
+    throw new ApiError(message, response.status);
   }
   syncSessionFromResponse(response);
   if (!response.body) {
