@@ -174,7 +174,7 @@ function ChatPageInner() {
     try {
       await streamChat(
         userMessage.trim(),
-        nextMessages.map((m) => ({ role: m.role, content: m.content })),
+        messages.map((m) => ({ role: m.role, content: m.content })),
         (event: ChatStreamEvent) => {
           if (event.type === "status") {
             setPhase(event.phase);
