@@ -77,7 +77,8 @@ function isSessionExpiredMessage(message: string): boolean {
 
 function handleAuthFailure(status: number, message: string, auth: boolean): void {
   if (!auth) return;
-  if (status === 401 || status === 403 || isSessionExpiredMessage(message)) {
+  // Only clear session on explicit auth failures — not generic 403 permission errors.
+  if (status === 401 || isSessionExpiredMessage(message)) {
     logout();
   }
 }

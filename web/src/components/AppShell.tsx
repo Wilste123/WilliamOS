@@ -23,7 +23,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hiddenLabRoute = isHiddenRoute(pathname);
   const usageLoggedRef = useRef(false);
   const validatedTokenRef = useRef<string | null>(null);
-  const bootInFlightRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isClient) return;
@@ -40,9 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setAuthReady(true);
       return;
     }
-    if (bootInFlightRef.current === accessToken) return;
 
-    bootInFlightRef.current = accessToken;
     setAuthReady(false);
     setBootError(null);
 
@@ -57,6 +54,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         );
       }, BOOT_TIMEOUT_MS);
     });
+
+    // Never block the shell longer than the boot timeout (Strict Mode / token rotation).
+    const failsafe = window.setTimeout(() => {
+      if (cancelled) return;
+      setAuthReady(true);
+      setBootError(
+        (prev) =>
+          prev ??
+          "Session-validering tok for lang tid. Prøv å laste på nytt eller logg inn på nytt."
+      );
+    }, BOOT_TIMEOUT_MS);
 
     Promise.race([fetchMe(), timeout])
       .then(() => {
@@ -77,7 +85,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           router.replace("/login");
           return;
         }
-        // Allow app to load so the user sees the error and can retry/log out.
         setAuthReady(true);
         setBootError(
           err instanceof ApiError
@@ -86,18 +93,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         );
       })
       .finally(() => {
-        if (bootInFlightRef.current === accessToken) {
-          bootInFlightRef.current = null;
-        }
+        window.clearTimeout(failsafe);
       });
 
     return () => {
       cancelled = true;
-      if (bootInFlightRef.current === accessToken) {
-        bootInFlightRef.current = null;
-      }
+      window.clearTimeout(failsafe);
     };
-  }, [isClient, session?.access_token, router]);
+  }, [isClient, session?.access_token]);
 
   if (!isClient) {
     return (
