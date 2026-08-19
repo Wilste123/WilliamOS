@@ -70,7 +70,7 @@ def test_get_client_requires_context():
     from app.services.storage_service import get_client
 
     set_current_context(None)
-    with pytest.raises(RuntimeError, match="Authentication required"):
+    with pytest.raises(RuntimeError, match="innlogget"):
         get_client()
 
 
@@ -86,7 +86,7 @@ def test_get_client_requires_tokens():
             refresh_token="refresh",
         )
     )
-    with pytest.raises(RuntimeError, match="Missing session tokens"):
+    with pytest.raises(RuntimeError, match="Logg inn på nytt"):
         get_client()
     set_current_context(None)
 

@@ -41,7 +41,7 @@ IMMUTABLE_AUTH_FIELDS = frozenset({"user_id", "household_id", "visibility"})
 def _require_auth_context() -> UserContext:
     context = get_current_context()
     if context is None or not context.user_id:
-        raise RuntimeError("Authentication required. Sign in to access data.")
+        raise RuntimeError("Du må være innlogget for å få tilgang til data.")
     return context
 
 
@@ -91,7 +91,7 @@ def get_client():
 
     context = _require_auth_context()
     if not context.access_token or not context.refresh_token:
-        raise RuntimeError("Authentication required. Missing session tokens.")
+        raise RuntimeError("Sesjonen mangler tokens. Logg inn på nytt.")
     client = get_authenticated_client(
         context.access_token,
         context.refresh_token,

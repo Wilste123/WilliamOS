@@ -38,19 +38,21 @@ def _sse(payload: dict) -> str:
 
 
 @router.post("")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, user: CurrentUser):
+    use_user_context(user)
     answer, sources = ask_agent(
         request.message,
         use_documents=request.use_documents,
         history=request.history or None,
         document_id=request.document_id,
+        user_context=user,
     )
     return {"answer": answer, "sources": sources}
 
 
 @router.post("/stream")
-def chat_stream(request: ChatRequest, user: CurrentUser):
-    def generate():
+async def chat_stream(request: ChatRequest, user: CurrentUser):
+    async def generate():
         use_user_context(user)
         try:
             for event in ask_agent_stream(
@@ -58,7 +60,9 @@ def chat_stream(request: ChatRequest, user: CurrentUser):
                 use_documents=request.use_documents,
                 history=request.history or None,
                 document_id=request.document_id,
+                user_context=user,
             ):
+                use_user_context(user)
                 yield _sse(event)
         except Exception as exc:
             yield _sse({"type": "error", "message": str(exc)})

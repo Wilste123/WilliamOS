@@ -345,6 +345,16 @@ class TestChatActionPersistence:
         tasks = list_records("tasks")
         assert any("Bestill materialer" in t.get("title", "") for t in tasks)
 
+    def test_create_task_chat_command_with_colon(self, monkeypatch):
+        _patch_supabase(monkeypatch)
+        from app.agents.pa_agent import handle_actions
+        from app.services.storage_service import list_records
+
+        result = handle_actions("Lag oppgave: ring rørlegger, frist fredag")
+        assert result["handled"] is True
+        tasks = list_records("tasks")
+        assert any("ring rørlegger" in t.get("title", "") for t in tasks)
+
 
 # ---------------------------------------------------------------------------
 # 4. Supabase-only enforcement — operations must raise when Supabase is absent
@@ -356,7 +366,7 @@ class TestSupabaseRequired:
         from app.services.auth_context import set_current_context
 
         set_current_context(None)
-        with pytest.raises(RuntimeError, match="Authentication required"):
+        with pytest.raises(RuntimeError, match="innlogget"):
             storage_service.list_records("assets")
 
     def test_list_records_raises_when_supabase_not_configured(self, monkeypatch):

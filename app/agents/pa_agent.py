@@ -768,11 +768,11 @@ def handle_actions(message: str):
         return {"handled": True, "response": f"✅ Lagret i minnet: {text}", "actions": actions}
 
     action_patterns = [
-        ("task", "create_task", r"^(lag|opprett)\s+oppgave\s+(?P<content>.+)$"),
-        ("asset", "create_asset", r"^(lag|opprett)\s+(eiendel|asset)\s+(?P<content>.+)$"),
-        ("project", "create_project", r"^(lag|opprett)\s+prosjekt\s+(?P<content>.+)$"),
-        ("decision", "create_decision", r"^(lag|opprett)\s+beslutning\s+(?P<content>.+)$"),
-        ("inbox", "capture_inbox", r"^(fang|legg)\s+i\s+innboks\s+(?P<content>.+)$"),
+        ("task", "create_task", r"^(lag|opprett)\s+oppgave\s*:?\s*(?P<content>.+)$"),
+        ("asset", "create_asset", r"^(lag|opprett)\s+(eiendel|asset)\s*:?\s*(?P<content>.+)$"),
+        ("project", "create_project", r"^(lag|opprett)\s+prosjekt\s*:?\s*(?P<content>.+)$"),
+        ("decision", "create_decision", r"^(lag|opprett)\s+beslutning\s*:?\s*(?P<content>.+)$"),
+        ("inbox", "capture_inbox", r"^(fang|legg)\s+i\s+innboks\s*:?\s*(?P<content>.+)$"),
     ]
 
     for action_type, func_name, pattern in action_patterns:
@@ -943,6 +943,7 @@ def ask_agent(
     use_documents: bool = True,
     history: list[dict] | None = None,
     document_id: str | None = None,
+    user_context=None,
 ) -> tuple[str, list[dict]]:
     """Return (answer, sources).
 
@@ -952,6 +953,11 @@ def ask_agent(
     does not need to pre-filter.  Only ``user`` and ``assistant`` roles are
     forwarded to the model.
     """
+    if user_context is not None:
+        from app.api.deps import use_user_context
+
+        use_user_context(user_context)
+
     action_result = handle_actions(message)
     if action_result["handled"]:
         return action_result["response"], []
@@ -970,8 +976,14 @@ def ask_agent_stream(
     use_documents: bool = True,
     history: list[dict] | None = None,
     document_id: str | None = None,
+    user_context=None,
 ):
     """Yield SSE-ready dicts: status, token, done, or error."""
+    if user_context is not None:
+        from app.api.deps import use_user_context
+
+        use_user_context(user_context)
+
     action_result = handle_actions(message)
     if action_result["handled"]:
         yield {"type": "token", "text": action_result["response"]}
@@ -992,6 +1004,10 @@ def ask_agent_stream(
     assistant_text = ""
 
     def tool_handler(func_name: str, args: dict):
+        if user_context is not None:
+            from app.api.deps import use_user_context
+
+            use_user_context(user_context)
         return _execute_tool(
             func_name,
             args,
