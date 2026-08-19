@@ -158,7 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-h-dvh min-w-0 overflow-x-hidden">
-        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur px-4 py-3 lg:hidden">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
