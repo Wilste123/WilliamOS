@@ -20,16 +20,20 @@ def _cache_token_rotation(old_refresh: str, access_token: str, new_refresh: str)
         )
 
 
+def _lookup_token_rotation_unlocked(old_refresh: str) -> tuple[str, str] | None:
+    entry = _rotation_cache.get(old_refresh)
+    if not entry:
+        return None
+    access_token, new_refresh, expires_at = entry
+    if time.monotonic() > expires_at:
+        _rotation_cache.pop(old_refresh, None)
+        return None
+    return access_token, new_refresh
+
+
 def _lookup_token_rotation(old_refresh: str) -> tuple[str, str] | None:
     with _refresh_lock:
-        entry = _rotation_cache.get(old_refresh)
-        if not entry:
-            return None
-        access_token, new_refresh, expires_at = entry
-        if time.monotonic() > expires_at:
-            _rotation_cache.pop(old_refresh, None)
-            return None
-        return access_token, new_refresh
+        return _lookup_token_rotation_unlocked(old_refresh)
 
 
 def _read_client_session_tokens(client) -> tuple[str | None, str | None]:
@@ -308,7 +312,7 @@ def build_context_from_tokens(access_token: str, refresh_token: str) -> UserCont
 
     if user is None:
         with _refresh_lock:
-            cached = _lookup_token_rotation(original_refresh)
+            cached = _lookup_token_rotation_unlocked(original_refresh)
             if cached:
                 access_token, refresh_token = cached
                 client = get_authenticated_client(access_token, refresh_token)
@@ -326,7 +330,7 @@ def build_context_from_tokens(access_token: str, refresh_token: str) -> UserCont
                 except Exception as exc:
                     message = str(getattr(exc, "message", None) or exc).lower()
                     if "already used" in message:
-                        recovered = _lookup_token_rotation(original_refresh)
+                        recovered = _lookup_token_rotation_unlocked(original_refresh)
                         if recovered:
                             access_token, refresh_token = recovered
                             client = get_authenticated_client(access_token, refresh_token)

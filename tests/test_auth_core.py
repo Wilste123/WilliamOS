@@ -74,3 +74,15 @@ def test_finalize_tokens_publishes_rotated_session(monkeypatch):
     assert access == "rotated-access"
     assert refresh == "rotated-refresh"
     assert published == [("rotated-access", "rotated-refresh")]
+
+
+def test_lookup_token_rotation_unlocked_avoids_deadlock_inside_refresh_lock():
+    """Regression: build_context_from_tokens must not deadlock when re-checking rotation cache."""
+    from app.services import auth_core
+
+    auth_core._cache_token_rotation("old-refresh", "cached-access", "cached-refresh")
+
+    with auth_core._refresh_lock:
+        cached = auth_core._lookup_token_rotation_unlocked("old-refresh")
+
+    assert cached == ("cached-access", "cached-refresh")

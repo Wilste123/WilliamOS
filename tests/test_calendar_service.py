@@ -149,6 +149,89 @@ def test_create_calendar_event_reports_missing_write_scope(monkeypatch):
     assert "skrivetilgang" in str(record.get("google_sync_error", "")).lower()
 
 
+def test_sync_skips_overwrite_when_local_edit_is_newer(monkeypatch):
+    store = {"calendar_events": [], "user_integrations": []}
+    _patch_supabase(monkeypatch, _make_fake_supabase(store))
+    from app.services.google_service import sync_google_calendar_events
+
+    integration = {
+        "id": "int-1",
+        "provider": "google",
+        "status": "connected",
+        "access_token": "token",
+        "refresh_token": "refresh",
+    }
+    store["user_integrations"].append(integration)
+
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    google_updated = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+    local_updated = datetime.now(timezone.utc).isoformat()
+
+    store["calendar_events"].append(
+        {
+            "id": "evt-1",
+            "title": "Edited locally",
+            "source": "google",
+            "external_id": "google-event-1",
+            "start_at": tomorrow,
+            "updated_at": local_updated,
+        }
+    )
+
+    google_event = {
+        "id": "google-event-1",
+        "summary": "Stale Google title",
+        "updated": google_updated,
+        "start": {"dateTime": tomorrow},
+        "end": {"dateTime": tomorrow},
+    }
+
+    monkeypatch.setattr(
+        "app.services.google_service.fetch_calendar_events",
+        lambda access_token, days=7, max_results=50: [google_event],
+    )
+    monkeypatch.setattr(
+        "app.services.google_service._ensure_access_token",
+        lambda integration: "token",
+    )
+
+    result = sync_google_calendar_events(integration, days=7)
+    assert result["updated"] == 0
+    assert store["calendar_events"][0]["title"] == "Edited locally"
+
+
+def test_ensure_access_token_updates_in_memory_dict(monkeypatch):
+    from app.services import google_service
+
+    integration = {
+        "id": "int-1",
+        "access_token": "old-access",
+        "refresh_token": "old-refresh",
+        "token_expires_at": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
+    }
+    refresh_calls = {"count": 0}
+
+    def fake_refresh(refresh_token):
+        refresh_calls["count"] += 1
+        return {
+            "access_token": "new-access",
+            "refresh_token": "new-refresh",
+            "expires_in": 3600,
+        }
+
+    monkeypatch.setattr(google_service, "refresh_google_token", fake_refresh)
+    monkeypatch.setattr(google_service, "update_record", lambda *args, **kwargs: {})
+
+    token = google_service._ensure_access_token(integration)
+    assert token == "new-access"
+    assert refresh_calls["count"] == 1
+
+    token2 = google_service._ensure_access_token(integration)
+    assert token2 == "new-access"
+    assert refresh_calls["count"] == 1
+    assert integration["refresh_token"] == "new-refresh"
+
+
 def test_list_calendar_events_includes_earlier_today(monkeypatch):
     _patch_supabase(monkeypatch)
     from app.services.calendar_service import create_calendar_event, list_calendar_events
