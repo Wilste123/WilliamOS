@@ -220,19 +220,24 @@ def _ensure_access_token(integration: dict) -> str | None:
             if exp <= datetime.now(timezone.utc) + timedelta(minutes=2) and refresh:
                 tokens = refresh_google_token(refresh)
                 access = tokens["access_token"]
+                new_refresh = tokens.get("refresh_token") or refresh
+                token_expires_at = (
+                    datetime.now(timezone.utc)
+                    + timedelta(seconds=int(tokens.get("expires_in", 3600)))
+                ).isoformat()
                 update_record(
                     "user_integrations",
                     integration["id"],
                     {
                         "access_token": access,
-                        "refresh_token": tokens.get("refresh_token") or refresh,
-                        "token_expires_at": (
-                            datetime.now(timezone.utc)
-                            + timedelta(seconds=int(tokens.get("expires_in", 3600)))
-                        ).isoformat(),
+                        "refresh_token": new_refresh,
+                        "token_expires_at": token_expires_at,
                         "status": "connected",
                     },
                 )
+                integration["access_token"] = access
+                integration["refresh_token"] = new_refresh
+                integration["token_expires_at"] = token_expires_at
         except (urllib.error.URLError, KeyError, ValueError) as exc:
             logger.warning("Google token refresh failed: %s", exc)
             update_record("user_integrations", integration["id"], {"status": "error"})
@@ -311,8 +316,21 @@ def _calendar_record_from_google(event: dict) -> dict:
         "external_id": event.get("id"),
         "calendar_id": "primary",
         "visibility": "household",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": event.get("updated") or datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _parse_google_updated(event: dict) -> datetime | None:
+    raw = event.get("updated")
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except ValueError:
+        return None
 
 
 def _parse_event_datetime(value: object) -> datetime:
@@ -422,6 +440,17 @@ def sync_google_calendar_events(integration: dict, *, days: int = 30) -> dict:
         payload = _calendar_record_from_google(event)
         current = by_external.get(external_id)
         if current:
+            local_updated_raw = current.get("updated_at")
+            if local_updated_raw:
+                try:
+                    local_updated = datetime.fromisoformat(str(local_updated_raw).replace("Z", "+00:00"))
+                    if local_updated.tzinfo is None:
+                        local_updated = local_updated.replace(tzinfo=timezone.utc)
+                    google_updated = _parse_google_updated(event)
+                    if google_updated and local_updated > google_updated:
+                        continue
+                except ValueError:
+                    pass
             update_record("calendar_events", current["id"], payload)
             updated += 1
         else:
