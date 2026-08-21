@@ -2,7 +2,9 @@
 
 Personal Chief of Staff — a daily-use app for tasks, assets, inbox capture, and AI chat.
 
-**WilliamOS** → **HouseOS** → **LifeOS**. See [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md).
+**WilliamOS** → **HouseOS** → **LifeOS**.
+
+**Start here for agents / Claude:** [CLAUDE.md](CLAUDE.md) · full briefing [docs/PROJECT-PRESENTATION.md](docs/PROJECT-PRESENTATION.md)
 
 ---
 
@@ -48,13 +50,15 @@ Details: [MVP-FOCUS.md](MVP-FOCUS.md)
 
 | Doc | Purpose |
 |-----|---------|
+| [CLAUDE.md](CLAUDE.md) | Operating rules for Claude / Cursor agents |
+| [docs/PROJECT-PRESENTATION.md](docs/PROJECT-PRESENTATION.md) | Canonical product + architecture briefing |
 | [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Setup, migrations, run locally |
 | [MVP-FOCUS.md](MVP-FOCUS.md) | Current MVP scope and definition of done |
 | [docs/SEVEN-DAY-TEST.md](docs/SEVEN-DAY-TEST.md) | Daily-use validation gate |
 | [docs/IPHONE-TEST.md](docs/IPHONE-TEST.md) | ngrok + PWA on iPhone |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Fly.io + Vercel deploy |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Developer reference |
-| [docs/ARCHITECTURE-vision.md](docs/ARCHITECTURE-vision.md) | Target architecture |
+| [docs/ARCHITECTURE-vision.md](docs/ARCHITECTURE-vision.md) | Target architecture (Streamlit notes are historical) |
 | [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md) | LifeOS / HouseOS vision |
 | [docs/ENDGOAL.md](docs/ENDGOAL.md) | Target state spec (full platform) |
 
