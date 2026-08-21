@@ -2,7 +2,9 @@
 
 Personal Chief of Staff — a daily-use app for tasks, assets, inbox capture, and AI chat.
 
-**WilliamOS** → **HouseOS** → **LifeOS**. See [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md).
+**WilliamOS** → **HouseOS** → **LifeOS**.
+
+Start here if you are an AI or a new contributor: **[docs/PROJECT-PRESENTATION.md](docs/PROJECT-PRESENTATION.md)** (full briefing) and **[CLAUDE.md](CLAUDE.md)** (working contract). Vision source: [docs/PRODUCT-VISION.md](docs/PRODUCT-VISION.md).
 
 ---
 
@@ -48,6 +50,8 @@ Details: [MVP-FOCUS.md](MVP-FOCUS.md)
 
 | Doc | Purpose |
 |-----|---------|
+| [docs/PROJECT-PRESENTATION.md](docs/PROJECT-PRESENTATION.md) | Full product + vision briefing for Claude / contributors |
+| [CLAUDE.md](CLAUDE.md) | Agent working contract (architecture rules, how to add features) |
 | [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Setup, migrations, run locally |
 | [MVP-FOCUS.md](MVP-FOCUS.md) | Current MVP scope and definition of done |
 | [docs/SEVEN-DAY-TEST.md](docs/SEVEN-DAY-TEST.md) | Daily-use validation gate |
