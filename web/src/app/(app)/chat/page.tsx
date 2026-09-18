@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 
+import { VoiceChatControls } from "@/components/VoiceChatControls";
 import {
   fetchMe,
   streamChat,
@@ -164,9 +165,10 @@ function ChatPageInner() {
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
-  const sendMessageRef = useRef<(userMessage: string) => Promise<void>>(async () => {});
+  const sendMessageRef = useRef<(userMessage: string) => Promise<string | null>>(async () => null);
   const documentContextRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -193,8 +195,8 @@ function ChatPageInner() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, phase]);
 
-  async function sendMessage(userMessage: string) {
-    if (!userMessage.trim() || loading) return;
+  async function sendMessage(userMessage: string): Promise<string | null> {
+    if (!userMessage.trim() || loading) return null;
 
     const nextMessages: Message[] = [...messages, { role: "user", content: userMessage.trim() }];
     setMessages(nextMessages);
@@ -269,6 +271,7 @@ function ChatPageInner() {
       setPhase(null);
       setStreaming(false);
     }
+    return assistant || null;
   }
 
   sendMessageRef.current = sendMessage;
@@ -322,12 +325,29 @@ function ChatPageInner() {
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold">Chat med {assistantName}</h1>
-        <p className="text-sm text-muted">
-          Gi oppdrag — Mini-jarv foreslår handlinger du godkjenner med ett klikk.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Chat med {assistantName}</h1>
+          <p className="text-sm text-muted">
+            Gi oppdrag — Mini-jarv foreslår handlinger du godkjenner med ett klikk.
+          </p>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-accent hover:text-accent">
+          <input
+            type="checkbox"
+            checked={voiceModeEnabled}
+            onChange={(e) => setVoiceModeEnabled(e.target.checked)}
+            className="rounded border-border"
+          />
+          Stemmemodus
+        </label>
       </div>
+
+      <VoiceChatControls
+        active={voiceModeEnabled}
+        disabled={loading}
+        onTranscript={(text) => sendMessageRef.current(text)}
+      />
 
       {messages.length === 0 && (
         <div className="flex flex-wrap gap-2">
